@@ -1,0 +1,107 @@
+name: build obs plugin
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+env:
+  PLUGIN_NAME: audio-monitor
+
+jobs:
+  windows:
+    name: Windows
+    runs-on: [windows-latest]
+    env:
+      QT_VERSION: '5.15.2'
+      CMAKE_GENERATOR: "Visual Studio 16 2019"
+      CMAKE_SYSTEM_VERSION: "10.0.18363.657"
+      WINDOWS_DEPS_VERSION: '2019'
+    steps:
+      - name: Add msbuild to PATH
+        uses: microsoft/setup-msbuild@v1.0.2
+      - name: Checkout obs
+        uses: actions/checkout@v2.3.3
+        with:
+          repository: obsproject/obs-studio
+          submodules: 'recursive'
+      - name: Checkout plugin
+        uses: actions/checkout@v2.3.3
+        with:
+          path: plugins/${{ env.PLUGIN_NAME}}
+      - name: Add plugin to obs cmake
+        shell: cmd
+        run: echo add_subdirectory(${{ env.PLUGIN_NAME }}) >> plugins/CMakeLists.txt
+      - name: Fetch Git Tags
+        run: git fetch --prune --tags --unshallow
+      - name: 'Restore QT dependency from cache'
+        id: qt-cache
+        uses: actions/cache@v2.1.2
+        env:
+          CACHE_NAME: 'qt-cache'
+        with:
+          path: ${{ github.workspace }}/cmbuild/QT
+          key: ${{ runner.os }}-pr-${{ env.CACHE_NAME }}-${{ env.QT_VERSION }}
+      - name: 'Restore pre-built dependencies from cache'
+        id: deps-cache
+        uses: actions/cache@v2.1.2
+        env:
+          CACHE_NAME: 'deps-cache'
+        with:
+          path: ${{ github.workspace }}/cmbuild/deps
+          key: ${{ runner.os }}-pr-${{ env.CACHE_NAME }}-${{ env.WINDOWS_DEPS_VERSION }}
+      - name: 'Install prerequisite: QT'
+        if: steps.qt-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -kLO https://cdn-fastly.obsproject.com/downloads/Qt_${{ env.QT_VERSION }}.7z -f --retry 5 -C -
+          7z x Qt_${{ env.QT_VERSION }}.7z -o"${{ github.workspace }}/cmbuild/QT"
+      - name: 'Install prerequisite: Pre-built dependencies'
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -kLO https://cdn-fastly.obsproject.com/downloads/dependencies${{ env.WINDOWS_DEPS_VERSION }}.zip -f --retry 5 -C -
+          7z x dependencies${{ env.WINDOWS_DEPS_VERSION }}.zip -o"${{ github.workspace }}/cmbuild/deps"
+      - name: Configure
+        run: |
+          mkdir ./package
+          mkdir ./build32
+          cd ./build32
+          cmake -G"${{ env.CMAKE_GENERATOR }}" -A"Win32" -DCMAKE_SYSTEM_VERSION="${{ env.CMAKE_SYSTEM_VERSION }}" -DBUILD_BROWSER=false -DBUILD_CAPTIONS=false -DCOMPILE_D3D12_HOOK=false -DDepsPath="${{ github.workspace }}/cmbuild/deps/win32" -DQTDIR="${{ github.workspace }}/cmbuild/QT/${{ env.QT_VERSION }}/msvc2019" -DCOPIED_DEPENDENCIES=FALSE -DCOPY_DEPENDENCIES=TRUE ..
+          cd ..
+          mkdir ./build64
+          cd ./build64
+          cmake -G"${{ env.CMAKE_GENERATOR }}" -A"x64" -DCMAKE_SYSTEM_VERSION="${{ env.CMAKE_SYSTEM_VERSION }}" -DBUILD_BROWSER=false -DBUILD_CAPTIONS=false -DCOMPILE_D3D12_HOOK=false -DDepsPath="${{ github.workspace }}/cmbuild/deps/win64" -DQTDIR="${{ github.workspace }}/cmbuild/QT/${{ env.QT_VERSION }}/msvc2019_64" -DCOPIED_DEPENDENCIES=FALSE -DCOPY_DEPENDENCIES=TRUE ..
+      - name: Build
+        run: |
+          msbuild /m /p:Configuration=RelWithDebInfo .\build32\obs-studio.sln
+          msbuild /m /p:Configuration=RelWithDebInfo .\build64\obs-studio.sln
+      - name: Package
+        if: success()
+        run: |
+          $env:FILE_DATE=(Get-Date -UFormat "%F")
+          $env:FILE_NAME="${{ env.PLUGIN_NAME }}-${env:FILE_DATE}-${{ github.sha }}-windows"
+          echo "FILE_NAME=${env:FILE_NAME}" >> ${env:GITHUB_ENV}
+          robocopy .\build32\rundir\RelWithDebInfo\obs-plugins\32bit\ .\package\obs-plugins\32bit ${{ env.PLUGIN_NAME }}.* /E /XF .gitignore
+          robocopy .\build64\rundir\RelWithDebInfo\obs-plugins\64bit\ .\package\obs-plugins\64bit ${{ env.PLUGIN_NAME }}.* /E /XF .gitignore
+          robocopy .\build64\rundir\RelWithDebInfo\data\obs-plugins\${{ env.PLUGIN_NAME }}\ .\package\data\obs-plugins\${{ env.PLUGIN_NAME }}\ /E /XF .gitignore
+          exit 0
+      - name: Publish zip
+        if: success()
+        uses: actions/upload-artifact@v2.2.0
+        with:
+          name: '${{ env.FILE_NAME }}'
+          path: package/*
+      - name: "Package Installer (Prereqs)"
+        run: |
+          curl "-kL" "https://github.com/Xaymar/msvc-redist-helper/releases/download/0.1/msvc-redist-helper-64.exe" "-f" "--retry" "5" "-o" "msvc-redist-helper.exe"
+          curl "-kL" "https://files.jrsoftware.org/is/6/innosetup-6.0.3.exe" "-f" "--retry" "5" "-o" "inno.exe"
+          .\inno.exe /VERYSILENT /SP- /SUPPRESSMSGBOXES /NORESTART
+      - name: "Package Installer (Compile)"
+        run: |
+          & 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' /Qp ".\build64\plugins\${{ env.PLUGIN_NAME }}\installer.iss"
+      - name: Publish installer
+        if: success()
+        uses: actions/upload-artifact@v2.2.0
+        with:
+          name: '${{ env.FILE_NAME }}-installer'
+          path: package/*.exe
