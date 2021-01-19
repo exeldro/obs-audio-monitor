@@ -28,7 +28,8 @@ add_library(audio-monitor MODULE
 	${audio-monitor_HEADERS}
 	${audio-monitor_SOURCES})
 target_link_libraries(audio-monitor
-		libobs)
+		libobs
+		w32-pthreads)
 
 set_target_properties(audio-monitor PROPERTIES FOLDER "plugins/exeldro")
 install_obs_plugin_with_data(audio-monitor data)

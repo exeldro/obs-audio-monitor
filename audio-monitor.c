@@ -8,6 +8,7 @@
 
 #include "media-io/audio-resampler.h"
 #include "util/platform.h"
+#include "util/threading.h"
 
 #define safe_release(ptr)                          \
 	do {                                       \
@@ -46,6 +47,7 @@ struct audio_monitor_info {
 	WORD channels;
 	audio_resampler_t *resampler;
 	float volume;
+	pthread_mutex_t playback_mutex;
 };
 
 static const char *audio_monitor_get_name(void *unused)
@@ -75,16 +77,19 @@ static enum speaker_layout convert_speaker_layout(DWORD layout, WORD channels)
 static void audio_monitor_update(void *data, obs_data_t *settings)
 {
 	struct audio_monitor_info *audio_monitor = data;
-	audio_monitor->volume = (float)obs_data_get_double(settings, "volume") / 100.0f;
+	audio_monitor->volume =
+		(float)obs_data_get_double(settings, "volume") / 100.0f;
 	const char *device_id = obs_data_get_string(settings, "device");
-	if (audio_monitor->device_id && strcmp(device_id, audio_monitor->device_id) == 0)
+	if (audio_monitor->device_id &&
+	    strcmp(device_id, audio_monitor->device_id) == 0)
 		return;
 	bfree(audio_monitor->device_id);
 	audio_monitor->device_id = bstrdup(device_id);
 
+	pthread_mutex_lock(&audio_monitor->playback_mutex);
+
 	if (audio_monitor->client)
-		audio_monitor->client->lpVtbl->Stop(
-			audio_monitor->client);
+		audio_monitor->client->lpVtbl->Stop(audio_monitor->client);
 
 	safe_release(audio_monitor->device);
 	safe_release(audio_monitor->client);
@@ -93,41 +98,45 @@ static void audio_monitor_update(void *data, obs_data_t *settings)
 
 	IMMDeviceEnumerator *immde = NULL;
 	HRESULT hr = CoCreateInstance(&CLSID_MMDeviceEnumerator, NULL,
-	                              CLSCTX_ALL,
-	                              &IID_IMMDeviceEnumerator,
-	                              (void **)&immde);
+				      CLSCTX_ALL, &IID_IMMDeviceEnumerator,
+				      (void **)&immde);
 	if (FAILED(hr)) {
+		pthread_mutex_unlock(&audio_monitor->playback_mutex);
 		return;
 	}
 	wchar_t w_id[512];
 	os_utf8_to_wcs(device_id, 0, w_id, 512);
 
-	hr = immde->lpVtbl->GetDevice(immde, w_id,
-	                              &audio_monitor->device);
+	hr = immde->lpVtbl->GetDevice(immde, w_id, &audio_monitor->device);
 	if (FAILED(hr)) {
 		safe_release(immde);
+		pthread_mutex_unlock(&audio_monitor->playback_mutex);
 		return;
 	}
 	hr = audio_monitor->device->lpVtbl->Activate(
-		audio_monitor->device, &IID_IAudioClient, CLSCTX_ALL,
-		NULL, (void **)&audio_monitor->client);
+		audio_monitor->device, &IID_IAudioClient, CLSCTX_ALL, NULL,
+		(void **)&audio_monitor->client);
 	if (FAILED(hr)) {
 		safe_release(immde);
+		pthread_mutex_unlock(&audio_monitor->playback_mutex);
 		return;
 	}
 	WAVEFORMATEX *wfex = NULL;
-	hr = audio_monitor->client->lpVtbl->GetMixFormat(
-		audio_monitor->client, &wfex);
+	hr = audio_monitor->client->lpVtbl->GetMixFormat(audio_monitor->client,
+							 &wfex);
 	if (FAILED(hr)) {
 		safe_release(immde);
+		pthread_mutex_unlock(&audio_monitor->playback_mutex);
 		return;
 	}
-	hr = audio_monitor->client->lpVtbl->Initialize(
-		audio_monitor->client, AUDCLNT_SHAREMODE_SHARED, 0,
-		10000000, 0, wfex, NULL);
+	hr = audio_monitor->client->lpVtbl->Initialize(audio_monitor->client,
+						       AUDCLNT_SHAREMODE_SHARED,
+						       0, 10000000, 0, wfex,
+						       NULL);
 	if (FAILED(hr)) {
 		safe_release(immde);
 		CoTaskMemFree(wfex);
+		pthread_mutex_unlock(&audio_monitor->playback_mutex);
 		return;
 	}
 	const struct audio_output_info *info =
@@ -141,8 +150,8 @@ static void audio_monitor_update(void *data, obs_data_t *settings)
 	from.format = AUDIO_FORMAT_FLOAT_PLANAR;
 
 	to.samples_per_sec = (uint32_t)wfex->nSamplesPerSec;
-	to.speakers = convert_speaker_layout(ext->dwChannelMask,
-	                                     wfex->nChannels);
+	to.speakers =
+		convert_speaker_layout(ext->dwChannelMask, wfex->nChannels);
 	to.format = AUDIO_FORMAT_FLOAT;
 	audio_monitor->sample_rate = (uint32_t)wfex->nSamplesPerSec;
 	audio_monitor->channels = wfex->nChannels;
@@ -152,10 +161,11 @@ static void audio_monitor_update(void *data, obs_data_t *settings)
 	audio_monitor->resampler = audio_resampler_create(&to, &from);
 
 	UINT32 frames;
-	hr = audio_monitor->client->lpVtbl->GetBufferSize(
-		audio_monitor->client, &frames);
+	hr = audio_monitor->client->lpVtbl->GetBufferSize(audio_monitor->client,
+							  &frames);
 	if (FAILED(hr)) {
 		safe_release(immde);
+		pthread_mutex_unlock(&audio_monitor->playback_mutex);
 		return;
 	}
 	hr = audio_monitor->client->lpVtbl->GetService(
@@ -163,12 +173,13 @@ static void audio_monitor_update(void *data, obs_data_t *settings)
 		(void **)&audio_monitor->render);
 	if (FAILED(hr)) {
 		safe_release(immde);
+		pthread_mutex_unlock(&audio_monitor->playback_mutex);
 		return;
 	}
-	hr = audio_monitor->client->lpVtbl->Start(
-		audio_monitor->client);
+	hr = audio_monitor->client->lpVtbl->Start(audio_monitor->client);
 
 	safe_release(immde);
+	pthread_mutex_unlock(&audio_monitor->playback_mutex);
 }
 
 static void *audio_monitor_create(obs_data_t *settings, obs_source_t *source)
@@ -176,6 +187,7 @@ static void *audio_monitor_create(obs_data_t *settings, obs_source_t *source)
 	struct audio_monitor_info *audio_monitor =
 		bzalloc(sizeof(struct audio_monitor_info));
 	audio_monitor->source = source;
+	pthread_mutex_init(&audio_monitor->playback_mutex, NULL);
 	audio_monitor_update(audio_monitor, settings);
 	return audio_monitor;
 }
@@ -183,6 +195,7 @@ static void *audio_monitor_create(obs_data_t *settings, obs_source_t *source)
 static void audio_monitor_destroy(void *data)
 {
 	struct audio_monitor_info *audio_monitor = data;
+	pthread_mutex_destroy(&audio_monitor->playback_mutex);
 	bfree(audio_monitor);
 }
 
@@ -215,7 +228,8 @@ struct obs_audio_data *audio_monitor_audio(void *data,
 					   struct obs_audio_data *audio)
 {
 	struct audio_monitor_info *audio_monitor = data;
-	if (!audio_monitor->resampler)
+	if (!audio_monitor->resampler ||
+	    pthread_mutex_trylock(&audio_monitor->playback_mutex) != 0)
 		return audio;
 
 	uint8_t *resample_data[MAX_AV_PLANES];
@@ -225,8 +239,10 @@ struct obs_audio_data *audio_monitor_audio(void *data,
 		audio_monitor->resampler, resample_data, &resample_frames,
 		&ts_offset, (const uint8_t *const *)audio->data,
 		(uint32_t)audio->frames);
-	if (!success)
+	if (!success) {
+		pthread_mutex_unlock(&audio_monitor->playback_mutex);
 		return audio;
+	}
 
 	UINT32 pad = 0;
 	audio_monitor->client->lpVtbl->GetCurrentPadding(audio_monitor->client,
@@ -234,8 +250,10 @@ struct obs_audio_data *audio_monitor_audio(void *data,
 	BYTE *output;
 	HRESULT hr = audio_monitor->render->lpVtbl->GetBuffer(
 		audio_monitor->render, resample_frames, &output);
-	if (FAILED(hr))
+	if (FAILED(hr)) {
+		pthread_mutex_unlock(&audio_monitor->playback_mutex);
 		return audio;
+	}
 	/* apply volume */
 
 	if (!close_float(audio_monitor->volume, 1.0f, EPSILON)) {
@@ -250,6 +268,7 @@ struct obs_audio_data *audio_monitor_audio(void *data,
 	       resample_frames * audio_monitor->channels * sizeof(float));
 	audio_monitor->render->lpVtbl->ReleaseBuffer(audio_monitor->render,
 						     resample_frames, 0);
+	pthread_mutex_unlock(&audio_monitor->playback_mutex);
 	return audio;
 }
 
