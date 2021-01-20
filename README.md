@@ -1,6 +1,17 @@
 # Audio Monitor filter for OBS Studio
 
-Plugin for OBS Studio to add Audio Monitor filter
+Plugin for OBS Studio to add Audio Monitor filter.
+It allows you to put the audio of a OBS source to an audio device by adding the Audio Monitor filter on the Source in OBS Studio.
+
+![Screenshot](media/screenshot.png)
+
+This can be useful in different use cases:
+
+   * monitoring a source on multiple devices
+   * monitoring audio without the delays of syncing to video
+   * separate monitoring audio levels per source and device
+   
+ This plugin is currently Windows-only, MacOS and Linux support is planned, though.
 
 # Build
 - Build OBS Studio: https://obsproject.com/wiki/Install-Instructions
