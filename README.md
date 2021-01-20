@@ -11,8 +11,6 @@ This can be useful in different use cases:
    * monitoring audio without the delays of syncing to video
    * separate monitoring audio levels per source and device
    
- This plugin is currently Windows-only, MacOS and Linux support is planned, though.
-
 # Build
 - Build OBS Studio: https://obsproject.com/wiki/Install-Instructions
 - Check out this repository to plugins/audio-monitor

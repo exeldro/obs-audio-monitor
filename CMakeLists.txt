@@ -1,4 +1,4 @@
-project(audio-monitor VERSION 0.0.1)
+project(audio-monitor VERSION 0.1.0)
 set(PROJECT_FULL_NAME "Audio Monitor")
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/version.h.in ${CMAKE_CURRENT_SOURCE_DIR}/version.h)
@@ -22,6 +22,24 @@ if(WIN32)
 	configure_file(resource.rc.in audio-monitor.rc)
 	list(APPEND audio-monitor_SOURCES
 		audio-monitor.rc)
+	if(MSVC)
+		set(audio-monitor_PLATFORM_DEPS
+		w32-pthreads)
+	endif()
+elseif(APPLE)
+	find_library(COREFOUNDATION CoreFoundation)
+	mark_as_advanced(COREFOUNDATION)
+	include_directories(${COREFOUNDATION})
+
+	find_library(AUDIOTOOLBOX AudioToolbox)
+	mark_as_advanced(AUDIOTOOLBOX)
+	include_directories(${AUDIOTOOLBOX})
+
+	set(audio-monitor_PLATFORM_DEPS
+	${COREFOUNDATION}
+	${AUDIOTOOLBOX})
+elseif(UNIX)
+
 endif()
 
 add_library(audio-monitor MODULE
@@ -29,7 +47,7 @@ add_library(audio-monitor MODULE
 	${audio-monitor_SOURCES})
 target_link_libraries(audio-monitor
 		libobs
-		w32-pthreads)
+		${audio-monitor_PLATFORM_DEPS})
 
 set_target_properties(audio-monitor PROPERTIES FOLDER "plugins/exeldro")
 install_obs_plugin_with_data(audio-monitor data)
