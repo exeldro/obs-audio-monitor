@@ -10,6 +10,91 @@ env:
   PLUGIN_NAME: audio-monitor
 
 jobs:
+  macos64:
+    name: "macOS 64-bit"
+    runs-on: [macos-latest]
+    env:
+      QT_VERSION: '5.15.2'
+      MACOS_DEPS_VERSION: '2020-12-22'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2.3.3
+        with:
+          repository: obsproject/obs-studio
+          submodules: 'recursive'
+      - name: "Checkout plugin"
+        uses: actions/checkout@v2.3.3
+        with:
+          path: plugins/${{ env.PLUGIN_NAME }}
+      - name: Fetch Git Tags
+        run: |
+          cd plugins/${{ env.PLUGIN_NAME }}
+          git fetch --prune --tags --unshallow
+      - name: 'Install prerequisites (Homebrew)'
+        shell: bash
+        run: |
+          if [ -d /usr/local/opt/openssl@1.0.2t ]; then
+              brew uninstall openssl@1.0.2t
+              brew untap local/openssl
+          fi
+
+          if [ -d /usr/local/opt/python@2.7.17 ]; then
+              brew uninstall python@2.7.17
+              brew untap local/python2
+          fi
+          brew bundle --file ./CI/scripts/macos/Brewfile
+      - name: 'Install prerequisite: Pre-built dependencies'
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          curl -L -O https://github.com/obsproject/obs-deps/releases/download/${{ env.MACOS_DEPS_VERSION }}/macos-deps-${{ env.MACOS_DEPS_VERSION }}.tar.gz
+          tar -xf ./macos-deps-${{ env.MACOS_DEPS_VERSION }}.tar.gz -C "/tmp"
+      - name: 'Install prerequisite: Pre-built dependency Qt'
+        if: steps.deps-qt-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          curl -L -O https://github.com/obsproject/obs-deps/releases/download/${{ env.MACOS_DEPS_VERSION }}/macos-qt-${{ env.QT_VERSION }}-${{ env.MACOS_DEPS_VERSION }}.tar.gz
+          tar -xf ./macos-qt-${{ env.QT_VERSION }}-${{ env.MACOS_DEPS_VERSION }}.tar.gz -C "/tmp"
+          xattr -r -d com.apple.quarantine /tmp/obsdeps
+      - name: Configure
+        shell: bash
+        run: |
+          echo "add_subdirectory(${{ env.PLUGIN_NAME }})" >> plugins/CMakeLists.txt
+          mkdir ./build
+          cd ./build
+          cmake -DDISABLE_PYTHON=ON -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13 -DQTDIR="/tmp/obsdeps" -DSWIGDIR="/tmp/obsdeps" -DDepsPath="/tmp/obsdeps" ..
+          cd -
+      - name: Build
+        shell: bash
+        run: |
+          set -e
+          cd ./build
+          make -j4
+          cd -
+      - name: 'Install prerequisite: Packages app'
+        if: success()
+        shell: bash
+        run: |
+          curl -L -O https://s3-us-west-2.amazonaws.com/obs-nightly/Packages.pkg
+          sudo installer -pkg ./Packages.pkg -target /
+      - name: Package
+        if: success()
+        shell: bash
+        run: |
+          cd plugins/${{ env.PLUGIN_NAME }}
+          FILE_DATE=$(date +%Y-%m-%d)
+          FILE_NAME=${{ env.PLUGIN_NAME }}-$FILE_DATE-${{ github.sha }}-macos.pkg
+          echo "FILE_NAME=${FILE_NAME}" >> $GITHUB_ENV
+          packagesbuild ./CI/macos/${{ env.PLUGIN_NAME }}.pkgproj
+          cd -
+          mkdir ./nightly
+          mv plugins/${{ env.PLUGIN_NAME }}/${{ env.PLUGIN_NAME }}.pkg ./nightly/${FILE_NAME}
+      - name: Publish
+        if: success()
+        uses: actions/upload-artifact@v2.2.0
+        with:
+          name: '${{ env.FILE_NAME }}'
+          path: ./nightly/*.pkg
   windows:
     name: Windows
     runs-on: [windows-latest]
@@ -71,10 +156,10 @@ jobs:
           mkdir ./build64
           cd ./build64
           cmake -G"${{ env.CMAKE_GENERATOR }}" -A"x64" -DCMAKE_SYSTEM_VERSION="${{ env.CMAKE_SYSTEM_VERSION }}" -DBUILD_BROWSER=false -DBUILD_CAPTIONS=false -DCOMPILE_D3D12_HOOK=false -DDepsPath="${{ github.workspace }}/cmbuild/deps/win64" -DQTDIR="${{ github.workspace }}/cmbuild/QT/${{ env.QT_VERSION }}/msvc2019_64" -DCOPIED_DEPENDENCIES=FALSE -DCOPY_DEPENDENCIES=TRUE ..
-      - name: Build
-        run: |
-          msbuild /m /p:Configuration=RelWithDebInfo .\build32\obs-studio.sln
-          msbuild /m /p:Configuration=RelWithDebInfo .\build64\obs-studio.sln
+      - name: 'Build 32'
+        run: msbuild /m /p:Configuration=RelWithDebInfo .\build32\obs-studio.sln
+      - name: 'Build 64'
+        run: msbuild /m /p:Configuration=RelWithDebInfo .\build64\obs-studio.sln
       - name: Package
         if: success()
         run: |
