@@ -160,29 +160,9 @@ static void buffer_audio(void *data, AudioQueueRef aq, AudioQueueBufferRef buf)
 }
 #endif
 
-static void audio_monitor_update(void *data, obs_data_t *settings)
+void audio_monitor_stop(struct audio_monitor_info *audio_monitor)
 {
-	struct audio_monitor_info *audio_monitor = data;
-	audio_monitor->volume =
-		(float)obs_data_get_double(settings, "volume") / 100.0f;
-
-	const char *device_id = obs_data_get_string(settings, "device");
-	if (audio_monitor->device_id &&
-	    strcmp(device_id, audio_monitor->device_id) == 0)
-		return;
-	bfree(audio_monitor->device_id);
-	audio_monitor->device_id = bstrdup(device_id);
-
-	if (!device_id || !*device_id)
-		return;
-
-	pthread_mutex_lock(&audio_monitor->mutex);
-
-	const struct audio_output_info *info =
-		audio_output_get_info(obs_get_audio());
-
 #ifdef __APPLE__
-
 	if (audio_monitor->active) {
 		AudioQueueStop(audio_monitor->queue, true);
 	}
@@ -195,11 +175,28 @@ static void audio_monitor_update(void *data, obs_data_t *settings)
 	if (audio_monitor->queue) {
 		AudioQueueDispose(audio_monitor->queue, true);
 	}
-
-	audio_resampler_destroy(audio_monitor->resampler);
 	circlebuf_free(&audio_monitor->empty_buffers);
 	circlebuf_free(&audio_monitor->new_data);
+#endif
+#ifdef WIN32
+	if (audio_monitor->client)
+		audio_monitor->client->lpVtbl->Stop(audio_monitor->client);
 
+	safe_release(audio_monitor->device);
+	safe_release(audio_monitor->client);
+	safe_release(audio_monitor->render);
+#endif
+	audio_resampler_destroy(audio_monitor->resampler);
+	audio_monitor->resampler = NULL;
+}
+
+void audio_monitor_start(struct audio_monitor_info *audio_monitor)
+{
+
+	const struct audio_output_info *info =
+		audio_output_get_info(obs_get_audio());
+
+#ifdef __APPLE__
 	audio_monitor->channels = get_audio_channels(info->speakers);
 	audio_monitor->buffer_size = audio_monitor->channels * sizeof(float) *
 				     info->samples_per_sec / 100 * 3;
@@ -223,8 +220,8 @@ static void audio_monitor_update(void *data, obs_data_t *settings)
 		return;
 	}
 	CFStringRef cf_uid = CFStringCreateWithBytes(
-		NULL, (const UInt8 *)device_id, strlen(device_id),
-		kCFStringEncodingUTF8, false);
+		NULL, (const UInt8 *)audio_monitor->device_id,
+		strlen(audio_monitor->device_id), kCFStringEncodingUTF8, false);
 
 	stat = AudioQueueSetProperty(audio_monitor->queue,
 				     kAudioQueueProperty_CurrentDevice, &cf_uid,
@@ -275,14 +272,6 @@ static void audio_monitor_update(void *data, obs_data_t *settings)
 
 #endif
 #ifdef WIN32
-	if (audio_monitor->client)
-		audio_monitor->client->lpVtbl->Stop(audio_monitor->client);
-
-	safe_release(audio_monitor->device);
-	safe_release(audio_monitor->client);
-	safe_release(audio_monitor->render);
-	audio_resampler_destroy(audio_monitor->resampler);
-
 	IMMDeviceEnumerator *immde = NULL;
 	HRESULT hr = CoCreateInstance(&CLSID_MMDeviceEnumerator, NULL,
 				      CLSCTX_ALL, &IID_IMMDeviceEnumerator,
@@ -292,7 +281,7 @@ static void audio_monitor_update(void *data, obs_data_t *settings)
 		return;
 	}
 	wchar_t w_id[512];
-	os_utf8_to_wcs(device_id, 0, w_id, 512);
+	os_utf8_to_wcs(audio_monitor->device_id, 0, w_id, 512);
 
 	hr = immde->lpVtbl->GetDevice(immde, w_id, &audio_monitor->device);
 	if (FAILED(hr)) {
@@ -365,6 +354,27 @@ static void audio_monitor_update(void *data, obs_data_t *settings)
 
 	safe_release(immde);
 #endif
+}
+
+static void audio_monitor_update(void *data, obs_data_t *settings)
+{
+	struct audio_monitor_info *audio_monitor = data;
+	audio_monitor->volume =
+		(float)obs_data_get_double(settings, "volume") / 100.0f;
+
+	const char *device_id = obs_data_get_string(settings, "device");
+	if (audio_monitor->device_id &&
+	    strcmp(device_id, audio_monitor->device_id) == 0)
+		return;
+	bfree(audio_monitor->device_id);
+	audio_monitor->device_id = bstrdup(device_id);
+
+	if (!device_id || !*device_id)
+		return;
+
+	pthread_mutex_lock(&audio_monitor->mutex);
+	audio_monitor_stop(audio_monitor);
+	audio_monitor_start(audio_monitor);
 	pthread_mutex_unlock(&audio_monitor->mutex);
 }
 
@@ -439,6 +449,12 @@ struct obs_audio_data *audio_monitor_audio(void *data,
 					   struct obs_audio_data *audio)
 {
 	struct audio_monitor_info *audio_monitor = data;
+	if (!audio_monitor->resampler && audio_monitor->device_id &&
+	    strlen(audio_monitor->device_id) &&
+	    pthread_mutex_trylock(&audio_monitor->mutex) == 0) {
+		audio_monitor_start(audio_monitor);
+		pthread_mutex_unlock(&audio_monitor->mutex);
+	}
 #ifdef __APPLE__
 	if (!os_atomic_load_bool(&audio_monitor->active))
 		return audio;
@@ -495,6 +511,7 @@ struct obs_audio_data *audio_monitor_audio(void *data,
 	HRESULT hr = audio_monitor->render->lpVtbl->GetBuffer(
 		audio_monitor->render, resample_frames, &output);
 	if (FAILED(hr)) {
+		audio_monitor_stop(audio_monitor);
 		pthread_mutex_unlock(&audio_monitor->mutex);
 		return audio;
 	}
