@@ -219,17 +219,20 @@ void audio_monitor_start(struct audio_monitor_info *audio_monitor)
 		pthread_mutex_unlock(&audio_monitor->mutex);
 		return;
 	}
-	CFStringRef cf_uid = CFStringCreateWithBytes(
-		NULL, (const UInt8 *)audio_monitor->device_id,
-		strlen(audio_monitor->device_id), kCFStringEncodingUTF8, false);
+	if (strcmp(audio_monitor->device_id, "default") != 0) {
+		CFStringRef cf_uid = CFStringCreateWithBytes(
+			NULL, (const UInt8 *)audio_monitor->device_id,
+			strlen(audio_monitor->device_id), kCFStringEncodingUTF8,
+			false);
 
-	stat = AudioQueueSetProperty(audio_monitor->queue,
-				     kAudioQueueProperty_CurrentDevice, &cf_uid,
-				     sizeof(cf_uid));
-	CFRelease(cf_uid);
-	if (!success(stat, "set current device")) {
-		pthread_mutex_unlock(&audio_monitor->mutex);
-		return;
+		stat = AudioQueueSetProperty(audio_monitor->queue,
+					     kAudioQueueProperty_CurrentDevice,
+					     &cf_uid, sizeof(cf_uid));
+		CFRelease(cf_uid);
+		if (!success(stat, "set current device")) {
+			pthread_mutex_unlock(&audio_monitor->mutex);
+			return;
+		}
 	}
 	stat = AudioQueueSetParameter(audio_monitor->queue,
 				      kAudioQueueParam_Volume, 1.0);
@@ -280,10 +283,16 @@ void audio_monitor_start(struct audio_monitor_info *audio_monitor)
 		pthread_mutex_unlock(&audio_monitor->mutex);
 		return;
 	}
-	wchar_t w_id[512];
-	os_utf8_to_wcs(audio_monitor->device_id, 0, w_id, 512);
+	if (strcmp(audio_monitor->device_id, "default") == 0) {
+		hr = immde->lpVtbl->GetDefaultAudioEndpoint(
+			immde, eRender, eConsole, &audio_monitor->device);
+	} else {
+		wchar_t w_id[512];
+		os_utf8_to_wcs(audio_monitor->device_id, 0, w_id, 512);
 
-	hr = immde->lpVtbl->GetDevice(immde, w_id, &audio_monitor->device);
+		hr = immde->lpVtbl->GetDevice(immde, w_id,
+					      &audio_monitor->device);
+	}
 	if (FAILED(hr)) {
 		safe_release(immde);
 		pthread_mutex_unlock(&audio_monitor->mutex);
@@ -434,6 +443,7 @@ static obs_properties_t *audio_monitor_properties(void *data)
 						    obs_module_text("Device"),
 						    OBS_COMBO_TYPE_LIST,
 						    OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(p, obs_module_text("Default"), "default");
 	obs_enum_audio_monitoring_devices(add_monitoring_device, p);
 	obs_properties_add_float_slider(
 		ppts, "volume", obs_module_text("Volume"), 0.0, 100.0, 1.0);
@@ -443,6 +453,7 @@ static obs_properties_t *audio_monitor_properties(void *data)
 void audio_monitor_defaults(obs_data_t *settings)
 {
 	obs_data_set_default_double(settings, "volume", 100.0);
+	obs_data_set_default_string(settings, "device", "default");
 }
 
 struct obs_audio_data *audio_monitor_audio(void *data,
