@@ -516,11 +516,16 @@ struct obs_audio_data *audio_monitor_audio(void *data,
 #ifdef WIN32
 
 	UINT32 pad = 0;
-	audio_monitor->client->lpVtbl->GetCurrentPadding(audio_monitor->client,
-							 &pad);
+	HRESULT hr = audio_monitor->client->lpVtbl->GetCurrentPadding(
+		audio_monitor->client, &pad);
+	if (FAILED(hr)) {
+		audio_monitor_stop(audio_monitor);
+		pthread_mutex_unlock(&audio_monitor->mutex);
+		return audio;
+	}
 	BYTE *output;
-	HRESULT hr = audio_monitor->render->lpVtbl->GetBuffer(
-		audio_monitor->render, resample_frames, &output);
+	hr = audio_monitor->render->lpVtbl->GetBuffer(audio_monitor->render,
+						      resample_frames, &output);
 	if (FAILED(hr)) {
 		audio_monitor_stop(audio_monitor);
 		pthread_mutex_unlock(&audio_monitor->mutex);
