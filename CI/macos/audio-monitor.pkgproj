@@ -36,7 +36,7 @@
 																		<key>GID</key>
 																		<integer>80</integer>
 																		<key>PATH</key>
-																		<string>../../../../build/plugins/audio-monitor/audio-monitor.so</string>
+																		<string>../../../../../build/UI/frontend-plugins/audio-monitor/audio-monitor.so</string>
 																		<key>PATH_TYPE</key>
 																		<integer>3</integer>
 																		<key>PERMISSIONS</key>
