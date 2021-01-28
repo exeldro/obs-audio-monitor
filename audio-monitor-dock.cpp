@@ -55,8 +55,8 @@ AudioMonitorDock::AudioMonitorDock(QWidget *parent) : QDockWidget(parent)
 	mainLayout = new QGridLayout;
 	mainLayout->setAlignment(Qt::AlignTop | Qt::AlignLeft);
 	mainLayout->setRowStretch(1, 1);
-	mainLayout->setContentsMargins(0, 0, 0, 0);
-	mainLayout->setSpacing(4);
+	mainLayout->setContentsMargins(4, 4, 4, 4);
+	mainLayout->setSpacing(8);
 
 	auto *config = new QPushButton(this);
 	config->setProperty("themeID", "configIconSmall");
@@ -102,9 +102,10 @@ void AudioMonitorDock::OBSSignal(void *data, const char *signal,
 	} else if (strcmp(signal, "source_remove") == 0 ||
 		   strcmp(signal, "source_destroy") == 0) {
 		signal_handler_disconnect(obs_source_get_signal_handler(source),
-				       "filter_add", OBSFilterAdd, data);
+					  "filter_add", OBSFilterAdd, data);
 		signal_handler_disconnect(obs_source_get_signal_handler(source),
-				       "filter_remove", OBSFilterRemove, data);
+					  "filter_remove", OBSFilterRemove,
+					  data);
 		QString sourceName = obs_source_get_name(source);
 		bool found = false;
 		int columns = dock->mainLayout->columnCount();
@@ -174,6 +175,7 @@ void AudioMonitorDock::addAudioControl(obs_source_t *source, int column,
 	nameLabel->setText(sourceName);
 	nameLabel->setFont(font);
 	nameLabel->setObjectName(sourceName);
+	nameLabel->setAlignment(Qt::AlignCenter);
 
 	mainLayout->addWidget(nameLabel, 0, column);
 

@@ -66,22 +66,35 @@ void AudioControl::LockVolumeControl(bool lock)
 		if (!item)
 			continue;
 		if (item->widget() == checkbox) {
+			item = mainLayout->itemAtPosition(1, column);
+			item->widget()->setEnabled(!lock);
+			item = mainLayout->itemAtPosition(2, column);
+			item->widget()->setEnabled(!lock);
+			obs_source_t *s = obs_weak_source_get_source(source);
+			if (!s)
+				return;
 			if (column == 1) {
-				obs_source_t *s =
-					obs_weak_source_get_source(source);
-				if (!s)
-					return;
-
 				obs_data_t *settings =
 					obs_source_get_private_settings(s);
 				obs_data_set_bool(settings, "volume_locked",
 						  lock);
 				obs_data_release(settings);
+			} else {
+				item = mainLayout->itemAtPosition(1, column);
+				QString filterName =
+					item->widget()->objectName();
+				obs_source_t *f = obs_source_get_filter_by_name(
+					s, QT_TO_UTF8(filterName));
+				if (f) {
+					obs_data_t *settings =
+						obs_source_get_settings(f);
+					obs_data_set_bool(settings, "locked",
+							  lock);
+					obs_data_release(settings);
+					obs_source_release(f);
+				}
 			}
-			item = mainLayout->itemAtPosition(1, column);
-			item->widget()->setEnabled(!lock);
-			item = mainLayout->itemAtPosition(2, column);
-			item->widget()->setEnabled(!lock);
+			obs_source_release(s);
 			return;
 		}
 	}

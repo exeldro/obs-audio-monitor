@@ -99,6 +99,7 @@ static obs_properties_t *audio_monitor_properties(void *data)
 	obs_enum_audio_monitoring_devices(add_monitoring_device, p);
 	obs_properties_add_float_slider(
 		ppts, "volume", obs_module_text("Volume"), 0.0, 100.0, 1.0);
+	obs_properties_add_bool(ppts, "locked", obs_module_text("Locked"));
 	return ppts;
 }
 
