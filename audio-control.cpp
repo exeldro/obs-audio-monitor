@@ -260,9 +260,8 @@ void AudioControl::OBSFilterRename(void *data, calldata_t *call_data)
 	}
 }
 
-void AudioControl::RemoveFilter(obs_source_t *filter)
+void AudioControl::RemoveFilter(QString filterName)
 {
-	QString filterName = QT_UTF8(obs_source_get_name(filter));
 	int columns = mainLayout->columnCount();
 	bool found = true;
 	for (int column = 2; column < columns; column++) {

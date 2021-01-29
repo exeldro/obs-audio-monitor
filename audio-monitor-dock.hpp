@@ -24,12 +24,22 @@ private:
 	static void OBSFilterRemove(void *data, calldata_t *calldata);
 	static bool OBSAddAudioDevice(void *data, const char *name,
 				      const char *id);
+	static bool OBSAddAudioSource(void *, obs_source_t *);
+	static void OBSFilterAdd(obs_source_t *parent, obs_source_t *child,
+				 void *data);
 	bool showOutputMeter;
 	bool showOutputSlider;
+	bool showOnlyActive;
 	void ConfigClicked();
 private slots:
 	void MeterOutputChanged();
 	void OutputSliderChanged();
+	void OnlyActiveChanged();
+	void AddAudioSource(OBSSource source);
+	void RemoveAudioControl(const QString &sourceName);
+	void RenameAudioControl(QString new_name, QString prev_name);
+	void AddFilter(OBSSource source, OBSSource filter);
+	void RemoveFilter(OBSSource source, QString filterName);
 
 public:
 	AudioMonitorDock(QWidget *parent = nullptr);

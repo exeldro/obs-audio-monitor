@@ -10,6 +10,7 @@
 #include "obs-frontend-api.h"
 #include "obs-module.h"
 #include "obs.h"
+#include "util/platform.h"
 
 #define QT_UTF8(str) QString::fromUtf8(str)
 #define QT_TO_UTF8(str) str.toUtf8().constData()
@@ -25,8 +26,23 @@ MODULE_EXPORT void load_audio_monitor_dock()
 
 AudioMonitorDock::AudioMonitorDock(QWidget *parent) : QDockWidget(parent)
 {
-	showOutputMeter = false;
-	showOutputSlider = false;
+	char *file = obs_module_config_path("config.json");
+	obs_data_t *data = nullptr;
+	if (file) {
+		data = obs_data_create_from_json_file(file);
+		bfree(file);
+	}
+	if (data) {
+		showOutputMeter = obs_data_get_bool(data, "showOutputMeter");
+		showOutputSlider = obs_data_get_bool(data, "showOutputSlider");
+		showOnlyActive = obs_data_get_bool(data, "showOnlyActive");
+		obs_data_release(data);
+	} else {
+
+		showOutputMeter = false;
+		showOutputSlider = false;
+		showOnlyActive = false;
+	}
 	setFeatures(AllDockWidgetFeatures);
 	setWindowTitle(QT_UTF8(obs_module_text("AudioMonitor")));
 	setObjectName("AudioMonitorDock");
@@ -80,6 +96,25 @@ AudioMonitorDock::~AudioMonitorDock()
 {
 	signal_handler_disconnect_global(obs_get_signal_handler(), OBSSignal,
 					 this);
+	char *file = obs_module_config_path("config.json");
+	if (file) {
+		obs_data_t *data = obs_data_create_from_json_file(file);
+		if (!data)
+			data = obs_data_create();
+		obs_data_set_bool(data, "showOutputMeter", showOutputMeter);
+		obs_data_set_bool(data, "showOutputSlider", showOutputSlider);
+		obs_data_set_bool(data, "showOnlyActive", showOnlyActive);
+		if (!obs_data_save_json(data, file)) {
+			char *path = obs_module_config_path("");
+			if (path) {
+				os_mkdirs(path);
+				bfree(path);
+			}
+			obs_data_save_json(data, file);
+		}
+		obs_data_release(data);
+		bfree(file);
+	}
 }
 
 void AudioMonitorDock::OBSSignal(void *data, const char *signal,
@@ -99,6 +134,12 @@ void AudioMonitorDock::OBSSignal(void *data, const char *signal,
 				       "filter_add", OBSFilterAdd, data);
 		signal_handler_connect(obs_source_get_signal_handler(source),
 				       "filter_remove", OBSFilterRemove, data);
+		if (!dock->showOnlyActive || obs_source_active(source)) {
+			QMetaObject::invokeMethod(dock, "AddAudioSource",
+						  Q_ARG(OBSSource,
+							OBSSource(source)));
+		}
+
 	} else if (strcmp(signal, "source_remove") == 0 ||
 		   strcmp(signal, "source_destroy") == 0) {
 		signal_handler_disconnect(obs_source_get_signal_handler(source),
@@ -106,44 +147,52 @@ void AudioMonitorDock::OBSSignal(void *data, const char *signal,
 		signal_handler_disconnect(obs_source_get_signal_handler(source),
 					  "filter_remove", OBSFilterRemove,
 					  data);
-		QString sourceName = obs_source_get_name(source);
-		bool found = false;
-		int columns = dock->mainLayout->columnCount();
-
-		for (int column = 1; column < columns; column++) {
-			QLayoutItem *item =
-				dock->mainLayout->itemAtPosition(0, column);
-			if (item) {
-				QWidget *w = item->widget();
-				if (sourceName == w->objectName()) {
-					found = true;
-					dock->moveAudioControl(column, -1);
-				} else if (found) {
-					dock->moveAudioControl(column,
-							       column - 1);
-				}
-			}
-		}
+		const QString sourceName = obs_source_get_name(source);
+		QMetaObject::invokeMethod(dock, "RemoveAudioControl",
+					  Q_ARG(QString, QString(sourceName)));
 	} else if (strcmp(signal, "source_volume") == 0) {
 	} else if (strcmp(signal, "source_rename") == 0) {
 		QString new_name =
 			QT_UTF8(calldata_string(call_data, "new_name"));
 		QString prev_name =
 			QT_UTF8(calldata_string(call_data, "prev_name"));
-		int columns = dock->mainLayout->columnCount();
+		QMetaObject::invokeMethod(dock, "RenameAudioControl",
+					  Q_ARG(QString, QString(new_name)),
+					  Q_ARG(QString, QString(prev_name)));
+	} else if (strcmp(signal, "source_activate") == 0) {
+		if (!dock->showOnlyActive)
+			return;
+		QMetaObject::invokeMethod(dock, "AddAudioSource",
+					  Q_ARG(OBSSource, OBSSource(source)));
+	} else if (strcmp(signal, "source_deactivate") == 0) {
+		if (!dock->showOnlyActive)
+			return;
+		QString sourceName = QT_UTF8(obs_source_get_name(source));
+		QMetaObject::invokeMethod(dock, "RemoveAudioControl",
+					  Q_ARG(QString, QString(sourceName)));
+	}
+}
 
-		for (int column = 1; column < columns; column++) {
-			QLayoutItem *item =
-				dock->mainLayout->itemAtPosition(0, column);
-			if (!item)
-				continue;
-			auto *l = static_cast<QLabel *>(item->widget());
-			if (prev_name == l->objectName()) {
-				l->setText(new_name);
-				l->setObjectName(new_name);
-			}
+void AudioMonitorDock::RenameAudioControl(QString new_name, QString prev_name)
+{
+
+	int columns = mainLayout->columnCount();
+
+	for (int column = 1; column < columns; column++) {
+		QLayoutItem *item = mainLayout->itemAtPosition(0, column);
+		if (!item)
+			continue;
+		auto *l = static_cast<QLabel *>(item->widget());
+		if (prev_name == l->objectName()) {
+			l->setText(new_name);
+			l->setObjectName(new_name);
 		}
 	}
+}
+
+void AudioMonitorDock::AddAudioSource(OBSSource source)
+{
+	OBSAddAudioSource(this, source);
 }
 
 void AudioMonitorDock::moveAudioControl(int fromColumn, int toColumn)
@@ -200,41 +249,51 @@ void AudioMonitorDock::OBSFilterAdd(void *data, calldata_t *call_data)
 	const char *filter_id = obs_source_get_unversioned_id(filter);
 	if (strcmp("audio_monitor", filter_id) != 0)
 		return;
-
 	AudioMonitorDock *dock = static_cast<AudioMonitorDock *>(data);
-	const int columns = dock->mainLayout->columnCount();
+	QMetaObject::invokeMethod(dock, "AddFilter",
+				  Q_ARG(OBSSource, OBSSource(source)),
+				  Q_ARG(OBSSource, OBSSource(filter)));
+}
+
+void AudioMonitorDock::AddFilter(OBSSource source, OBSSource filter)
+{
+
+	const int columns = mainLayout->columnCount();
 	if (columns <= 1) {
-		dock->addAudioControl(source, 1, filter);
+		addAudioControl(source, 1, filter);
 		return;
 	}
 	QString sourceName = QT_UTF8(obs_source_get_name(source));
 	for (int i = 1; i < columns; i++) {
-		QLayoutItem *item = dock->mainLayout->itemAtPosition(0, i);
+		QLayoutItem *item = mainLayout->itemAtPosition(0, i);
 		if (item) {
 			QWidget *w = item->widget();
 			if (sourceName.localeAwareCompare(w->objectName()) ==
 			    0) {
 
-				dock->addFilter(i, filter);
+				addFilter(i, filter);
 				return;
 			}
 		}
 	}
 
+	if (showOnlyActive && !obs_source_active(source))
+		return;
+
 	for (int i = columns - 1; i > 0; i--) {
-		QLayoutItem *item = dock->mainLayout->itemAtPosition(0, i);
+		QLayoutItem *item = mainLayout->itemAtPosition(0, i);
 		if (item) {
 			QWidget *w = item->widget();
 			if (sourceName.localeAwareCompare(w->objectName()) <
 			    0) {
-				dock->moveAudioControl(i, i + 1);
+				moveAudioControl(i, i + 1);
 			} else {
-				dock->addAudioControl(source, i + 1, filter);
+				addAudioControl(source, i + 1, filter);
 				break;
 			}
 		}
 		if (i == 1) {
-			dock->addAudioControl(source, i, filter);
+			addAudioControl(source, i, filter);
 		}
 	}
 }
@@ -251,30 +310,61 @@ void AudioMonitorDock::OBSFilterRemove(void *data, calldata_t *call_data)
 		return;
 
 	AudioMonitorDock *dock = static_cast<AudioMonitorDock *>(data);
-	int columns = dock->mainLayout->columnCount();
+	QString filterName = QT_UTF8(obs_source_get_name(filter));
+	QMetaObject::invokeMethod(dock, "RemoveFilter",
+				  Q_ARG(OBSSource, OBSSource(source)),
+				  Q_ARG(QString, filterName));
+}
+
+void AudioMonitorDock::RemoveFilter(OBSSource source, QString filterName)
+{
 
 	QString sourceName = QT_UTF8(obs_source_get_name(source));
+	int columns = mainLayout->columnCount();
 	bool removed = false;
 	for (int i = 1; i < columns; i++) {
-		QLayoutItem *item = dock->mainLayout->itemAtPosition(0, i);
+		QLayoutItem *item = mainLayout->itemAtPosition(0, i);
 		if (item) {
 			QWidget *w = item->widget();
 			if (sourceName.localeAwareCompare(w->objectName()) ==
 			    0) {
-				item = dock->mainLayout->itemAtPosition(1, i);
+				item = mainLayout->itemAtPosition(1, i);
 				if (!item)
 					continue;
 
 				AudioControl *audioControl =
 					static_cast<AudioControl *>(
 						item->widget());
-				audioControl->RemoveFilter(filter);
+				audioControl->RemoveFilter(filterName);
 				if (!audioControl->HasSliders()) {
-					dock->moveAudioControl(i, -1);
+					moveAudioControl(i, -1);
 					removed = true;
 				}
 			} else if (removed) {
-				dock->moveAudioControl(i, i - 1);
+				moveAudioControl(i, i - 1);
+			}
+		}
+	}
+}
+
+void AudioMonitorDock::RemoveAudioControl(const QString &sourceName)
+{
+	const int columns = mainLayout->columnCount();
+	bool removed = false;
+	for (int i = 1; i < columns; i++) {
+		QLayoutItem *item = mainLayout->itemAtPosition(0, i);
+		if (item) {
+			QWidget *w = item->widget();
+			if (sourceName.localeAwareCompare(w->objectName()) ==
+			    0) {
+				item = mainLayout->itemAtPosition(1, i);
+				if (!item)
+					continue;
+
+				moveAudioControl(i, -1);
+				removed = true;
+			} else if (removed) {
+				moveAudioControl(i, i - 1);
 			}
 		}
 	}
@@ -310,6 +400,10 @@ void AudioMonitorDock::ConfigClicked()
 	a->setCheckable(true);
 	a->setChecked(showOutputSlider);
 	connect(a, SIGNAL(triggered()), this, SLOT(OutputSliderChanged()));
+	a = popup.addAction(QT_UTF8(obs_module_text("OnlyActive")));
+	a->setCheckable(true);
+	a->setChecked(showOnlyActive);
+	connect(a, SIGNAL(triggered()), this, SLOT(OnlyActiveChanged()));
 
 	//audioDevices.clear();
 	//obs_enum_audio_monitoring_devices(OBSAddAudioDevice, this);
@@ -356,8 +450,123 @@ void AudioMonitorDock::OutputSliderChanged()
 			}
 		}
 	}
-	if (showOutputSlider) {
-		//todo add all not hidden audio
+	if (showOutputSlider && !showOnlyActive) {
+		obs_enum_sources(OBSAddAudioSource, this);
+	}
+}
+
+void AudioMonitorDock::OBSFilterAdd(obs_source_t *source, obs_source_t *filter,
+				    void *data)
+{
+	const char *filter_id = obs_source_get_unversioned_id(filter);
+	if (strcmp("audio_monitor", filter_id) != 0)
+		return;
+
+	AudioMonitorDock *dock = static_cast<AudioMonitorDock *>(data);
+	QString sourceName = QT_UTF8(obs_source_get_name(source));
+	const int columns = dock->mainLayout->columnCount();
+	for (int i = 1; i < columns; i++) {
+		QLayoutItem *item = dock->mainLayout->itemAtPosition(0, i);
+		if (item) {
+			QWidget *w = item->widget();
+			if (sourceName.localeAwareCompare(w->objectName()) ==
+			    0) {
+
+				dock->addFilter(i, filter);
+				return;
+			}
+		}
+	}
+}
+
+bool AudioMonitorDock::OBSAddAudioSource(void *data, obs_source_t *source)
+{
+	const uint32_t flags = obs_source_get_output_flags(source);
+	if ((flags & OBS_SOURCE_AUDIO) == 0)
+		return true;
+	AudioMonitorDock *dock = static_cast<AudioMonitorDock *>(data);
+	QString sourceName = QT_UTF8(obs_source_get_name(source));
+	int columns = dock->mainLayout->columnCount();
+	for (int i = 1; i < columns; i++) {
+		QLayoutItem *item = dock->mainLayout->itemAtPosition(0, i);
+		if (item) {
+			QWidget *w = item->widget();
+			if (sourceName == w->objectName()) {
+				return true;
+			}
+		}
+	}
+	for (int i = columns - 1; i > 0; i--) {
+		QLayoutItem *item = dock->mainLayout->itemAtPosition(0, i);
+		if (item) {
+			QWidget *w = item->widget();
+			if (sourceName.localeAwareCompare(w->objectName()) <
+			    0) {
+				dock->moveAudioControl(i, i + 1);
+			} else {
+				dock->addAudioControl(source, i + 1, nullptr);
+				break;
+			}
+		}
+		if (i == 1) {
+			dock->addAudioControl(source, i, nullptr);
+		}
+	}
+	obs_source_enum_filters(source, OBSFilterAdd, data);
+	// remove sources without slider
+	columns = dock->mainLayout->columnCount();
+	int removed = 0;
+	for (int column = 1; column < columns; column++) {
+		QLayoutItem *item = dock->mainLayout->itemAtPosition(1, column);
+		if (item) {
+			AudioControl *audioControl =
+				static_cast<AudioControl *>(item->widget());
+			if (!audioControl->HasSliders()) {
+				dock->moveAudioControl(column, -1);
+				removed++;
+			} else if (removed > 0) {
+				dock->moveAudioControl(column,
+						       column - removed);
+			}
+		}
+	}
+	return true;
+}
+
+void AudioMonitorDock::OnlyActiveChanged()
+{
+	QAction *a = static_cast<QAction *>(sender());
+	showOnlyActive = a->isChecked();
+	if (showOnlyActive) {
+		int columns = mainLayout->columnCount();
+		int removed = 0;
+		for (int column = 1; column < columns; column++) {
+			QLayoutItem *item =
+				mainLayout->itemAtPosition(1, column);
+			if (item) {
+				AudioControl *audioControl =
+					static_cast<AudioControl *>(
+						item->widget());
+				obs_source_t *s = obs_weak_source_get_source(
+					audioControl->GetSource());
+				if (s) {
+					if (!obs_source_active(s)) {
+						moveAudioControl(column, -1);
+						removed++;
+					} else if (removed > 0) {
+						moveAudioControl(
+							column,
+							column - removed);
+					}
+					obs_source_release(s);
+				} else if (removed > 0) {
+					moveAudioControl(column,
+							 column - removed);
+				}
+			}
+		}
+	} else {
+		obs_enum_sources(OBSAddAudioSource, this);
 	}
 }
 

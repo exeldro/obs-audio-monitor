@@ -24,12 +24,12 @@ private:
 	float levelTotal;
 	float levelCount;
 	obs_volmeter_t *obs_volmeter;
-	QGridLayout * mainLayout;
+	QGridLayout *mainLayout;
 
 	static void OBSVolumeLevel(void *data,
-	                           const float magnitude[MAX_AUDIO_CHANNELS],
-	                           const float peak[MAX_AUDIO_CHANNELS],
-	                           const float inputPeak[MAX_AUDIO_CHANNELS]);
+				   const float magnitude[MAX_AUDIO_CHANNELS],
+				   const float peak[MAX_AUDIO_CHANNELS],
+				   const float inputPeak[MAX_AUDIO_CHANNELS]);
 	static void OBSVolume(void *data, calldata_t *calldata);
 	static void OBSMute(void *data, calldata_t *calldata);
 	static void OBSFilterRename(void *data, calldata_t *calldata);
@@ -42,16 +42,14 @@ private slots:
 	void SliderChanged(int vol);
 signals:
 
-
 public:
 	explicit AudioControl(OBSWeakSource source);
 	~AudioControl();
 
 	inline obs_weak_source *GetSource() const { return source; }
 
-	
 	void AddFilter(obs_source_t *filter);
-	void RemoveFilter(obs_source_t *filter);
+	void RemoveFilter(QString filterName);
 	bool HasSliders();
 	void ShowOutputMeter(bool output);
 	void ShowOutputSlider(bool output);
