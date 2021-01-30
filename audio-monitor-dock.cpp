@@ -310,18 +310,17 @@ void AudioMonitorDock::OBSFilterRemove(void *data, calldata_t *call_data)
 		return;
 
 	AudioMonitorDock *dock = static_cast<AudioMonitorDock *>(data);
+	QString sourceName = QT_UTF8(obs_source_get_name(source));
 	QString filterName = QT_UTF8(obs_source_get_name(filter));
 	QMetaObject::invokeMethod(dock, "RemoveFilter",
-				  Q_ARG(OBSSource, OBSSource(source)),
+				  Q_ARG(QString, sourceName),
 				  Q_ARG(QString, filterName));
 }
 
-void AudioMonitorDock::RemoveFilter(OBSSource source, QString filterName)
+void AudioMonitorDock::RemoveFilter(QString sourceName, QString filterName)
 {
-
-	QString sourceName = QT_UTF8(obs_source_get_name(source));
 	int columns = mainLayout->columnCount();
-	bool removed = false;
+	int removed = 0;
 	for (int i = 1; i < columns; i++) {
 		QLayoutItem *item = mainLayout->itemAtPosition(0, i);
 		if (item) {
@@ -340,8 +339,8 @@ void AudioMonitorDock::RemoveFilter(OBSSource source, QString filterName)
 					moveAudioControl(i, -1);
 					removed = true;
 				}
-			} else if (removed) {
-				moveAudioControl(i, i - 1);
+			} else if (removed > 0) {
+				moveAudioControl(i, i - removed);
 			}
 		}
 	}

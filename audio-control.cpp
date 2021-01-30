@@ -41,6 +41,26 @@ AudioControl::~AudioControl()
 					  "mute", OBSMute, this);
 		signal_handler_disconnect(obs_source_get_signal_handler(s),
 					  "volume", OBSVolume, this);
+		int columns = mainLayout->columnCount();
+		for (int column = 2; column < columns; column++) {
+			QLayoutItem *item =
+				mainLayout->itemAtPosition(1, column);
+			if (item) {
+				QString filterName =
+					item->widget()->objectName();
+				obs_source_t *filter =
+					obs_source_get_filter_by_name(
+						s, QT_TO_UTF8(filterName));
+				if (filter) {
+					signal_handler_disconnect(
+						obs_source_get_signal_handler(
+							filter),
+						"rename", OBSFilterRename,
+						this);
+					obs_source_release(filter);
+				}
+			}
+		}
 		obs_source_release(s);
 	}
 	obs_volmeter_remove_callback(obs_volmeter, OBSVolumeLevel, this);
@@ -120,10 +140,7 @@ void AudioControl::MuteVolumeControl(bool mute)
 				return;
 			}
 			obs_source_t *f = obs_source_get_filter_by_name(
-				s, item->widget()
-					   ->objectName()
-					   .toUtf8()
-					   .constData());
+				s, QT_TO_UTF8(item->widget()->objectName()));
 			obs_source_release(s);
 			if (!f)
 				return;
@@ -218,7 +235,13 @@ void AudioControl::OBSVolume(void *data, calldata_t *call_data)
 	double volume;
 	calldata_get_float(call_data, "volume", &volume);
 	AudioControl *audioControl = static_cast<AudioControl *>(data);
-	QLayoutItem *item = audioControl->mainLayout->itemAtPosition(1, 1);
+	QMetaObject::invokeMethod(audioControl, "SetOutputVolume",
+				  Q_ARG(double, volume));
+}
+
+void AudioControl::SetOutputVolume(float volume)
+{
+	QLayoutItem *item = mainLayout->itemAtPosition(1, 1);
 	if (!item)
 		return;
 	auto *slider = static_cast<QSlider *>(item->widget());
@@ -232,7 +255,12 @@ void AudioControl::OBSMute(void *data, calldata_t *call_data)
 	calldata_get_ptr(call_data, "source", &source);
 	bool muted = calldata_bool(call_data, "muted");
 	AudioControl *audioControl = static_cast<AudioControl *>(data);
-	QLayoutItem *item = audioControl->mainLayout->itemAtPosition(2, 1);
+	QMetaObject::invokeMethod(audioControl, "SetMute", Q_ARG(bool, muted));
+}
+
+void AudioControl::SetMute(bool muted)
+{
+	QLayoutItem *item = mainLayout->itemAtPosition(2, 1);
 	if (!item)
 		return;
 	auto *mute = static_cast<QCheckBox *>(item->widget());
@@ -244,24 +272,42 @@ void AudioControl::OBSFilterRename(void *data, calldata_t *call_data)
 	const char *prev_name = calldata_string(call_data, "prev_name");
 	const char *new_name = calldata_string(call_data, "new_name");
 	AudioControl *audioControl = static_cast<AudioControl *>(data);
-	int columns = audioControl->mainLayout->columnCount();
+	QMetaObject::invokeMethod(audioControl, "RenameFilter",
+				  Q_ARG(QString, QT_UTF8(prev_name)),
+				  Q_ARG(QString, QT_UTF8(new_name)));
+}
+
+void AudioControl::RenameFilter(QString prev_name, QString new_name)
+{
+	int columns = mainLayout->columnCount();
 	for (int column = 2; column < columns; column++) {
-		QLayoutItem *item =
-			audioControl->mainLayout->itemAtPosition(1, column);
+		QLayoutItem *item = mainLayout->itemAtPosition(1, column);
 		if (!item)
 			continue;
 		auto *l = static_cast<QLabel *>(item->widget());
 		if (l->objectName() == prev_name) {
-			l->setObjectName(QT_UTF8(new_name));
+			l->setObjectName(new_name);
 			QString toolTip = QT_UTF8(obs_module_text("Volume"));
 			toolTip += " ";
-			l->setToolTip(toolTip + QT_UTF8(new_name));
+			l->setToolTip(toolTip + new_name);
 		}
 	}
 }
 
 void AudioControl::RemoveFilter(QString filterName)
 {
+	obs_source_t *s = obs_weak_source_get_source(source);
+	if (s) {
+		obs_source_t *filter = obs_source_get_filter_by_name(
+			s, QT_TO_UTF8(filterName));
+		if (filter) {
+			signal_handler_disconnect(
+				obs_source_get_signal_handler(filter), "rename",
+				OBSFilterRename, this);
+			obs_source_release(filter);
+		}
+		obs_source_release(s);
+	}
 	int columns = mainLayout->columnCount();
 	bool found = true;
 	for (int column = 2; column < columns; column++) {

@@ -39,7 +39,7 @@ private slots:
 	void RemoveAudioControl(const QString &sourceName);
 	void RenameAudioControl(QString new_name, QString prev_name);
 	void AddFilter(OBSSource source, OBSSource filter);
-	void RemoveFilter(OBSSource source, QString filterName);
+	void RemoveFilter(QString sourceName, QString filterName);
 
 public:
 	AudioMonitorDock(QWidget *parent = nullptr);
