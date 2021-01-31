@@ -1,6 +1,6 @@
-# Audio Monitor filter for OBS Studio
+# Audio Monitor dock and filter for OBS Studio
 
-Plugin for OBS Studio to add Audio Monitor filter.
+Plugin for OBS Studio to add Audio Monitor dock and filter.
 It allows you to put the audio of a OBS source to an audio device by adding the Audio Monitor filter on the Source in OBS Studio.
 
 ![Screenshot](media/screenshot.png)
@@ -21,4 +21,6 @@ https://obsproject.com/forum/resources/audio-monitor.1186/
 - Rebuild OBS Studio
 
 # Donations
-https://www.paypal.me/exeldro
+- https://github.com/sponsors/exeldro
+- https://www.paypal.me/exeldro
+- https://www.patreon.com/exeldro
