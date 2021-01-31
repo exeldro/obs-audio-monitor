@@ -160,6 +160,9 @@ void AudioControl::ShowOutputMeter(bool output)
 void AudioControl::ShowOutputSlider(bool output)
 {
 	if (output) {
+		auto *item = mainLayout->itemAtPosition(1, 1);
+		if (item)
+			return;
 		obs_source_t *s = obs_weak_source_get_source(source);
 		if (!s)
 			return;

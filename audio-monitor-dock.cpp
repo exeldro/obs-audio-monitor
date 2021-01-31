@@ -433,24 +433,29 @@ void AudioMonitorDock::OutputSliderChanged()
 {
 	QAction *a = static_cast<QAction *>(sender());
 	showOutputSlider = a->isChecked();
-	const int columns = mainLayout->columnCount();
-	int removed = 0;
-	for (int column = 1; column < columns; column++) {
-		QLayoutItem *item = mainLayout->itemAtPosition(1, column);
-		if (item) {
-			AudioControl *audioControl =
-				static_cast<AudioControl *>(item->widget());
-			audioControl->ShowOutputSlider(showOutputSlider);
-			if (!audioControl->HasSliders()) {
-				moveAudioControl(column, -1);
-				removed++;
-			} else if (removed > 0) {
-				moveAudioControl(column, column - removed);
+	if (showOutputSlider) {
+		obs_enum_sources(OBSAddAudioSource, this);
+	}else{
+		const int columns = mainLayout->columnCount();
+		int removed = 0;
+		for (int column = 1; column < columns; column++) {
+			QLayoutItem *item =
+				mainLayout->itemAtPosition(1, column);
+			if (item) {
+				AudioControl *audioControl =
+					static_cast<AudioControl *>(
+						item->widget());
+				audioControl->ShowOutputSlider(
+					showOutputSlider);
+				if (!audioControl->HasSliders()) {
+					moveAudioControl(column, -1);
+					removed++;
+				} else if (removed > 0) {
+					moveAudioControl(column,
+						column - removed);
+				}
 			}
 		}
-	}
-	if (showOutputSlider && !showOnlyActive) {
-		obs_enum_sources(OBSAddAudioSource, this);
 	}
 }
 
@@ -491,6 +496,12 @@ bool AudioMonitorDock::OBSAddAudioSource(void *data, obs_source_t *source)
 		if (item) {
 			QWidget *w = item->widget();
 			if (sourceName == w->objectName()) {
+				item = dock->mainLayout->itemAtPosition(1,i);
+				AudioControl *audioControl =
+					static_cast<AudioControl *>(
+						item->widget());
+				audioControl->ShowOutputSlider(
+					dock->showOutputSlider);
 				return true;
 			}
 		}
