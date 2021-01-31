@@ -75,9 +75,14 @@ AudioOutputControl::AudioOutputControl(int track, obs_data_t *settings)
 					obs_data_get_string(device, "id"));
 				auto it = audioDevices.find(device_id);
 				if (it == audioDevices.end()) {
+					QString name = QT_UTF8(
+						obs_module_text("Track"));
+					name += " ";
+					name += QString::number(track + 1);
 					audio_monitor *monitor =
 						audio_monitor_create(
-							QT_TO_UTF8(device_id));
+							QT_TO_UTF8(device_id),
+							QT_TO_UTF8(name));
 					audio_monitor_set_volume(monitor, 1.0f);
 					audio_monitor_start(monitor);
 					audioDevices[device_id] = monitor;
@@ -366,8 +371,11 @@ void AudioOutputControl::AddDevice(QString device_id, QString device_name)
 {
 	auto it = audioDevices.find(device_id);
 	if (it == audioDevices.end()) {
+		QString name = QT_UTF8(obs_module_text("Track"));
+		name += " ";
+		name += QString::number(track + 1);
 		audio_monitor *monitor =
-			audio_monitor_create(QT_TO_UTF8(device_id));
+			audio_monitor_create(QT_TO_UTF8(device_id), QT_TO_UTF8(name));
 		audio_monitor_set_volume(monitor, 1.0f);
 		audio_monitor_start(monitor);
 		audioDevices[device_id] = monitor;
