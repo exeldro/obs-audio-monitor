@@ -25,10 +25,10 @@ jobs:
       - name: "Checkout plugin"
         uses: actions/checkout@v2.3.3
         with:
-          path: plugins/${{ env.PLUGIN_NAME }}
+          path: UI/frontend-plugins/${{ env.PLUGIN_NAME }}
       - name: Fetch Git Tags
         run: |
-          cd plugins/${{ env.PLUGIN_NAME }}
+          cd UI/frontend-plugins/${{ env.PLUGIN_NAME }}
           git fetch --prune --tags --unshallow
       - name: 'Install prerequisites (Homebrew)'
         shell: bash
@@ -59,7 +59,7 @@ jobs:
       - name: Configure
         shell: bash
         run: |
-          echo "add_subdirectory(${{ env.PLUGIN_NAME }})" >> plugins/CMakeLists.txt
+          echo "add_subdirectory(${{ env.PLUGIN_NAME }})" >> UI/frontend-plugins/CMakeLists.txt
           mkdir ./build
           cd ./build
           cmake -DDISABLE_PYTHON=ON -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13 -DQTDIR="/tmp/obsdeps" -DSWIGDIR="/tmp/obsdeps" -DDepsPath="/tmp/obsdeps" ..
@@ -71,6 +71,14 @@ jobs:
           cd ./build
           make -j4
           cd -
+      - name: Relink to Qt that ships with OBS
+        if: success()
+        shell: bash
+        run: |
+          cd ./build/UI/frontend-plugins/${{ env.PLUGIN_NAME }}
+          install_name_tool -change /usr/local/opt/qt/lib/QtCore.framework/Versions/5/QtCore @executable_path/../Frameworks/QtCore.framework/Versions/5/QtCore ${{ env.PLUGIN_NAME }}.so
+          install_name_tool -change /usr/local/opt/qt/lib/QtGui.framework/Versions/5/QtGui @executable_path/../Frameworks/QtGui.framework/Versions/5/QtGui ${{ env.PLUGIN_NAME }}.so
+          install_name_tool -change /usr/local/opt/qt/lib/QtWidgets.framework/Versions/5/QtWidgets @executable_path/../Frameworks/QtWidgets.framework/Versions/5/QtWidgets ${{ env.PLUGIN_NAME }}.so
       - name: 'Install prerequisite: Packages app'
         if: success()
         shell: bash
@@ -81,14 +89,14 @@ jobs:
         if: success()
         shell: bash
         run: |
-          cd plugins/${{ env.PLUGIN_NAME }}
+          cd UI/frontend-plugins/${{ env.PLUGIN_NAME }}
           FILE_DATE=$(date +%Y-%m-%d)
           FILE_NAME=${{ env.PLUGIN_NAME }}-$FILE_DATE-${{ github.sha }}-macos.pkg
           echo "FILE_NAME=${FILE_NAME}" >> $GITHUB_ENV
           packagesbuild ./CI/macos/${{ env.PLUGIN_NAME }}.pkgproj
           cd -
           mkdir ./nightly
-          mv plugins/${{ env.PLUGIN_NAME }}/${{ env.PLUGIN_NAME }}.pkg ./nightly/${FILE_NAME}
+          mv UI/frontend-plugins/${{ env.PLUGIN_NAME }}/${{ env.PLUGIN_NAME }}.pkg ./nightly/${FILE_NAME}
       - name: Publish
         if: success()
         uses: actions/upload-artifact@v2.2.0
@@ -114,10 +122,10 @@ jobs:
       - name: Checkout plugin
         uses: actions/checkout@v2.3.3
         with:
-          path: plugins/${{ env.PLUGIN_NAME}}
+          path: UI/frontend-plugins/${{ env.PLUGIN_NAME}}
       - name: Add plugin to obs cmake
         shell: cmd
-        run: echo add_subdirectory(${{ env.PLUGIN_NAME }}) >> plugins/CMakeLists.txt
+        run: echo add_subdirectory(${{ env.PLUGIN_NAME }}) >> UI/frontend-plugins/CMakeLists.txt
       - name: Fetch Git Tags
         run: git fetch --prune --tags --unshallow
       - name: 'Restore QT dependency from cache'
@@ -183,7 +191,7 @@ jobs:
           .\inno.exe /VERYSILENT /SP- /SUPPRESSMSGBOXES /NORESTART
       - name: "Package Installer (Compile)"
         run: |
-          & 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' /Qp ".\build64\plugins\${{ env.PLUGIN_NAME }}\installer.iss"
+          & 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' /Qp ".\build64\UI\frontend-plugins\${{ env.PLUGIN_NAME }}\installer.iss"
       - name: Publish installer
         if: success()
         uses: actions/upload-artifact@v2.2.0
