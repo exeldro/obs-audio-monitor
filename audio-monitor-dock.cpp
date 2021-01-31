@@ -506,6 +506,8 @@ bool AudioMonitorDock::OBSAddAudioSource(void *data, obs_source_t *source)
 			}
 		}
 	}
+	if (dock->showOnlyActive && !obs_source_active(source))
+		return true;
 	for (int i = columns - 1; i > 0; i--) {
 		QLayoutItem *item = dock->mainLayout->itemAtPosition(0, i);
 		if (item) {
