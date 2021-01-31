@@ -435,7 +435,7 @@ void AudioMonitorDock::OutputSliderChanged()
 	showOutputSlider = a->isChecked();
 	if (showOutputSlider) {
 		obs_enum_sources(OBSAddAudioSource, this);
-	}else{
+	} else {
 		const int columns = mainLayout->columnCount();
 		int removed = 0;
 		for (int column = 1; column < columns; column++) {
@@ -452,7 +452,7 @@ void AudioMonitorDock::OutputSliderChanged()
 					removed++;
 				} else if (removed > 0) {
 					moveAudioControl(column,
-						column - removed);
+							 column - removed);
 				}
 			}
 		}
@@ -496,7 +496,7 @@ bool AudioMonitorDock::OBSAddAudioSource(void *data, obs_source_t *source)
 		if (item) {
 			QWidget *w = item->widget();
 			if (sourceName == w->objectName()) {
-				item = dock->mainLayout->itemAtPosition(1,i);
+				item = dock->mainLayout->itemAtPosition(1, i);
 				AudioControl *audioControl =
 					static_cast<AudioControl *>(
 						item->widget());
@@ -508,20 +508,26 @@ bool AudioMonitorDock::OBSAddAudioSource(void *data, obs_source_t *source)
 	}
 	if (dock->showOnlyActive && !obs_source_active(source))
 		return true;
-	for (int i = columns - 1; i > 0; i--) {
-		QLayoutItem *item = dock->mainLayout->itemAtPosition(0, i);
-		if (item) {
-			QWidget *w = item->widget();
-			if (sourceName.localeAwareCompare(w->objectName()) <
-			    0) {
-				dock->moveAudioControl(i, i + 1);
-			} else {
-				dock->addAudioControl(source, i + 1, nullptr);
-				break;
+	if (columns <= 1) {
+		dock->addAudioControl(source, 1, nullptr);
+	} else {
+		for (int i = columns - 1; i > 0; i--) {
+			QLayoutItem *item =
+				dock->mainLayout->itemAtPosition(0, i);
+			if (item) {
+				QWidget *w = item->widget();
+				if (sourceName.localeAwareCompare(
+					    w->objectName()) < 0) {
+					dock->moveAudioControl(i, i + 1);
+				} else {
+					dock->addAudioControl(source, i + 1,
+							      nullptr);
+					break;
+				}
 			}
-		}
-		if (i == 1) {
-			dock->addAudioControl(source, i, nullptr);
+			if (i == 1) {
+				dock->addAudioControl(source, i, nullptr);
+			}
 		}
 	}
 	obs_source_enum_filters(source, OBSFilterAdd, data);
