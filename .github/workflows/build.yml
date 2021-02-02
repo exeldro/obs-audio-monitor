@@ -8,6 +8,7 @@ on:
 
 env:
   PLUGIN_NAME: audio-monitor
+  OBS_VERSION: 26.1.1
 
 jobs:
   macos64:
@@ -21,6 +22,7 @@ jobs:
         uses: actions/checkout@v2.3.3
         with:
           repository: obsproject/obs-studio
+          ref: ${{ env.OBS_VERSION }}
           submodules: 'recursive'
       - name: "Checkout plugin"
         uses: actions/checkout@v2.3.3
@@ -76,9 +78,9 @@ jobs:
         shell: bash
         run: |
           cd ./build/UI/frontend-plugins/${{ env.PLUGIN_NAME }}
-          install_name_tool -change /usr/local/opt/qt/lib/QtCore.framework/Versions/5/QtCore @executable_path/../Frameworks/QtCore.framework/Versions/5/QtCore ${{ env.PLUGIN_NAME }}.so
-          install_name_tool -change /usr/local/opt/qt/lib/QtGui.framework/Versions/5/QtGui @executable_path/../Frameworks/QtGui.framework/Versions/5/QtGui ${{ env.PLUGIN_NAME }}.so
-          install_name_tool -change /usr/local/opt/qt/lib/QtWidgets.framework/Versions/5/QtWidgets @executable_path/../Frameworks/QtWidgets.framework/Versions/5/QtWidgets ${{ env.PLUGIN_NAME }}.so
+          install_name_tool -change /tmp/obsdeps/lib/QtCore.framework/Versions/5/QtCore @executable_path/../Frameworks/QtCore.framework/Versions/5/QtCore ${{ env.PLUGIN_NAME }}.so
+          install_name_tool -change /tmp/obsdeps/lib/QtGui.framework/Versions/5/QtGui @executable_path/../Frameworks/QtGui.framework/Versions/5/QtGui ${{ env.PLUGIN_NAME }}.so
+          install_name_tool -change /tmp/obsdeps/lib/QtWidgets.framework/Versions/5/QtWidgets @executable_path/../Frameworks/QtWidgets.framework/Versions/5/QtWidgets ${{ env.PLUGIN_NAME }}.so
       - name: 'Install prerequisite: Packages app'
         if: success()
         shell: bash
@@ -118,6 +120,7 @@ jobs:
         uses: actions/checkout@v2.3.3
         with:
           repository: obsproject/obs-studio
+          ref: ${{ env.OBS_VERSION }}
           submodules: 'recursive'
       - name: Checkout plugin
         uses: actions/checkout@v2.3.3

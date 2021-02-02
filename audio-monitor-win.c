@@ -220,7 +220,6 @@ void audio_monitor_audio(void *data, struct obs_audio_data *audio)
 	audio_monitor->render->lpVtbl->ReleaseBuffer(audio_monitor->render,
 						     resample_frames, 0);
 	pthread_mutex_unlock(&audio_monitor->mutex);
-	return;
 }
 
 void audio_monitor_set_volume(struct audio_monitor *audio_monitor, float volume)

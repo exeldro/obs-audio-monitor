@@ -1,4 +1,4 @@
-project(audio-monitor VERSION 0.2.0)
+project(audio-monitor VERSION 0.2.1)
 set(PROJECT_FULL_NAME "Audio Monitor")
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/version.h.in ${CMAKE_CURRENT_SOURCE_DIR}/version.h)
