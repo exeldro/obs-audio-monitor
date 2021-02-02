@@ -85,6 +85,9 @@ static void buffer_audio(void *data, AudioQueueRef aq, AudioQueueBufferRef buf)
 }
 
 void audio_monitor_stop(struct audio_monitor *audio_monitor){
+	if (!audio_monitor)
+		return;
+
     if (audio_monitor->active) {
 		AudioQueueStop(audio_monitor->queue, true);
 	}
@@ -104,6 +107,8 @@ void audio_monitor_stop(struct audio_monitor *audio_monitor){
 }
 
 void audio_monitor_start(struct audio_monitor *audio_monitor){
+	if (!audio_monitor)
+		return;
     const struct audio_output_info *info =
 		audio_output_get_info(obs_get_audio());
     audio_monitor->channels = get_audio_channels(info->speakers);
@@ -239,6 +244,8 @@ void audio_monitor_audio(void *data, struct obs_audio_data *audio){
 }
 
 void audio_monitor_set_volume(struct audio_monitor *audio_monitor, float volume){
+	if (!audio_monitor)
+		return;
     audio_monitor->volume = volume;
 }
 
@@ -250,6 +257,8 @@ struct audio_monitor *audio_monitor_create(const char *device_id){
 }
 
 void audio_monitor_destroy(struct audio_monitor *audio_monitor){
+	if (!audio_monitor)
+		return;
     audio_monitor_stop(audio_monitor);
 	pthread_mutex_destroy(&audio_monitor->mutex);
     bfree(audio_monitor->device_id);
@@ -257,5 +266,7 @@ void audio_monitor_destroy(struct audio_monitor *audio_monitor){
 }
 
 const char *audio_monitor_get_device_id(struct audio_monitor *audio_monitor){
+	if (!audio_monitor)
+		return NULL;
     return audio_monitor->device_id;
 }

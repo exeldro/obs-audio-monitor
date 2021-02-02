@@ -224,6 +224,8 @@ void audio_monitor_audio(void *data, struct obs_audio_data *audio)
 
 void audio_monitor_set_volume(struct audio_monitor *audio_monitor, float volume)
 {
+	if (!audio_monitor)
+		return;
 	audio_monitor->volume = volume;
 }
 
@@ -247,5 +249,7 @@ void audio_monitor_destroy(struct audio_monitor *audio_monitor)
 
 const char *audio_monitor_get_device_id(struct audio_monitor *audio_monitor)
 {
+	if (!audio_monitor)
+		return;
 	return audio_monitor->device_id;
 }
