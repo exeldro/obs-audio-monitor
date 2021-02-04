@@ -35,7 +35,6 @@ private:
 
 private slots:
 	void LockVolumeControl(bool lock);
-	void MuteVolumeControl(bool mute);
 	void SliderChanged(int vol);
 signals:
 

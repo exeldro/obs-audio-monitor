@@ -153,6 +153,13 @@ void AudioControl::ShowOutputMeter(bool output)
 	volMeter->ShowOutputMeter(output);
 }
 
+#define LOG_OFFSET_DB 6.0f
+#define LOG_RANGE_DB 96.0f
+/* equals -log10f(LOG_OFFSET_DB) */
+#define LOG_OFFSET_VAL -0.77815125038364363f
+/* equals -log10f(-LOG_RANGE_DB + LOG_OFFSET_DB) */
+#define LOG_RANGE_VAL -2.00860017176191756f
+
 void AudioControl::ShowOutputSlider(bool output)
 {
 	if (output) {
@@ -184,7 +191,17 @@ void AudioControl::ShowOutputSlider(bool output)
 		slider->setMinimum(0);
 		slider->setMaximum(10000);
 		slider->setToolTip(QT_UTF8(obs_module_text("VolumeOutput")));
-		slider->setValue(obs_source_get_volume(s) * 10000.0f);
+		float mul = obs_source_get_volume(s);
+		float db = obs_mul_to_db(mul);
+		float def;
+		if (db >= 0.0f)
+			def = 1.0f;
+		else if (db <= -96.0f)
+			def = 0.0f;
+		else 
+			def = (-log10f(-db + LOG_OFFSET_DB) - LOG_RANGE_VAL) /
+		       (LOG_OFFSET_VAL - LOG_RANGE_VAL);
+		slider->setValue(def * 10000.0f);
 
 		connect(slider, SIGNAL(valueChanged(int)), this,
 			SLOT(SliderChanged(int)));
@@ -238,13 +255,23 @@ void AudioControl::OBSVolume(void *data, calldata_t *call_data)
 				  Q_ARG(double, volume));
 }
 
-void AudioControl::SetOutputVolume(float volume)
+void AudioControl::SetOutputVolume(double volume)
 {
 	QLayoutItem *item = mainLayout->itemAtPosition(1, 1);
 	if (!item)
 		return;
 	auto *slider = static_cast<QSlider *>(item->widget());
-	int val = volume * 10000.0;
+	float db = obs_mul_to_db(volume);
+	float def;
+	if (db >= 0.0f)
+		def = 1.0f;
+	else if (db <= -96.0f)
+		def = 0.0f;
+	else
+		def = (-log10f(-db + LOG_OFFSET_DB) - LOG_RANGE_VAL) /
+		      (LOG_OFFSET_VAL - LOG_RANGE_VAL);
+
+	int val = def * 10000.0;
 	slider->setValue(val);
 }
 
@@ -432,7 +459,20 @@ void AudioControl::SliderChanged(int vol)
 		return;
 	QLayoutItem *i = mainLayout->itemAtPosition(1, 1);
 	if (i && i->widget() == w) {
-		obs_source_set_volume(s, (float)vol / 10000.0f);
+		float def = (float)vol / 10000.0f;
+		float db;
+		if (def >= 1.0f)
+			db = 0.0f;
+		else if (def <= 0.0f)
+			db = -INFINITY;
+		else
+			db = -(LOG_RANGE_DB + LOG_OFFSET_DB) *
+				     powf((LOG_RANGE_DB + LOG_OFFSET_DB) /
+						  LOG_OFFSET_DB,
+					  -def) +
+			     LOG_OFFSET_DB;
+		const float mul = obs_db_to_mul(db);
+		obs_source_set_volume(s, mul);
 		obs_source_release(s);
 		return;
 	}

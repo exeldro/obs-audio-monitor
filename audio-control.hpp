@@ -37,7 +37,7 @@ private slots:
 	void LockVolumeControl(bool lock);
 	void MuteVolumeControl(bool mute);
 	void SliderChanged(int vol);
-	void SetOutputVolume(float volume);
+	void SetOutputVolume(double volume);
 	void SetMute(bool muted);
 	void RenameFilter(QString prev_name, QString new_name);
 signals:

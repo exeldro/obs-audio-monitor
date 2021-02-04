@@ -31,6 +31,10 @@ bool updateFilterName(void *data, const char *name, const char *id)
 	return true;
 }
 
+#define LOG_OFFSET_DB 6.0f
+#define LOG_RANGE_DB 96.0f
+
+
 static void audio_monitor_update(void *data, obs_data_t *settings)
 {
 	struct audio_monitor_context *audio_monitor = data;
@@ -52,9 +56,23 @@ static void audio_monitor_update(void *data, obs_data_t *settings)
 		audio_monitor->monitor = audio_monitor_create(device_id);
 		audio_monitor_start(audio_monitor->monitor);
 	}
+	float def = (float)obs_data_get_double(settings, "volume") / 100.0f;
+	float db;
+	if (def >= 1.0f)
+		db = 0.0f;
+	else if (def <= 0.0f)
+		db = -INFINITY;
+	else
+		db = -(LOG_RANGE_DB + LOG_OFFSET_DB) *
+			     powf((LOG_RANGE_DB + LOG_OFFSET_DB) /
+					  LOG_OFFSET_DB,
+				  -def) +
+		     LOG_OFFSET_DB;
+	const float mul = isfinite((double)db) ? powf(10.0f, db / 20.0f) : 0.0f;
+
 	audio_monitor_set_volume(
 		audio_monitor->monitor,
-		(float)obs_data_get_double(settings, "volume") / 100.0f);
+		mul);
 }
 
 static void *audio_monitor_filter_create(obs_data_t *settings,

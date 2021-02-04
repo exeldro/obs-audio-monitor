@@ -265,11 +265,33 @@ void AudioOutputControl::OBSOutputAudio(void *param, size_t mix_idx,
 	}
 	audio.frames = data->frames;
 	audio.timestamp = data->timestamp;
-	
+
+	int columns = control->mainLayout->columnCount();
 	auto d = control->audioDevices.begin();
 	while (d != control->audioDevices.end()) {
-		audio_monitor *monitor = d.value();
-		audio_monitor_audio(monitor, &audio);
+		bool muted = false;
+		for (int column = 1; column < columns; column++) {
+			auto *item = control->mainLayout->itemAtPosition(
+				control->sliderRow, column);
+			if (!item)
+				continue;
+			if (item->widget()->objectName() == d.key()) {
+				item = control->mainLayout->itemAtPosition(
+					control->muteRow, column);
+				if (!item)
+					continue;
+				auto* mute = reinterpret_cast<QCheckBox *>(
+					item->widget());
+				if (mute->isChecked())
+					muted = true;
+				break;
+			}
+
+		}
+		if (!muted) {
+			audio_monitor *monitor = d.value();
+			audio_monitor_audio(monitor, &audio);
+		}
 		++d;
 	}
 }
@@ -287,22 +309,6 @@ void AudioOutputControl::LockVolumeControl(bool lock)
 			item->widget()->setEnabled(!lock);
 			item = mainLayout->itemAtPosition(muteRow, column);
 			item->widget()->setEnabled(!lock);
-			return;
-		}
-	}
-}
-
-void AudioOutputControl::MuteVolumeControl(bool mute)
-{
-	QCheckBox *checkbox = reinterpret_cast<QCheckBox *>(sender());
-	int columns = mainLayout->columnCount();
-	for (int column = 1; column < columns; column++) {
-		QLayoutItem *item = mainLayout->itemAtPosition(muteRow, column);
-		if (!item)
-			continue;
-		if (item->widget() == checkbox) {
-			item = mainLayout->itemAtPosition(sliderRow, column);
-			//todo mute
 			return;
 		}
 	}
@@ -420,9 +426,6 @@ void AudioOutputControl::addDeviceColumn(int column, QString device_id,
 	auto *mute = new MuteCheckBox();
 	mute->setChecked(muted);
 	mute->setEnabled(!lock);
-
-	connect(mute, &QCheckBox::stateChanged, this,
-		&AudioOutputControl::MuteVolumeControl, Qt::DirectConnection);
 
 	mainLayout->addWidget(locked, 0, column, Qt::AlignHCenter);
 	mainLayout->addWidget(slider, 1, column, Qt::AlignHCenter);
