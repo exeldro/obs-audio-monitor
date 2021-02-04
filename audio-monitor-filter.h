@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void audio_monitor_stop(struct audio_monitor *audio_monitor);
 void audio_monitor_start(struct audio_monitor *audio_monitor);
 void audio_monitor_audio(void *data, struct obs_audio_data *audio);
@@ -8,3 +12,7 @@ void audio_monitor_set_volume(struct audio_monitor *audio_monitor,
 struct audio_monitor *audio_monitor_create(const char *device_id);
 void audio_monitor_destroy(struct audio_monitor *audio_monitor);
 const char *audio_monitor_get_device_id(struct audio_monitor *audio_monitor);
+
+#ifdef __cplusplus
+}
+#endif

@@ -1,4 +1,4 @@
-project(audio-monitor VERSION 0.2.2)
+project(audio-monitor VERSION 0.3.0)
 set(PROJECT_FULL_NAME "Audio Monitor")
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/version.h.in ${CMAKE_CURRENT_SOURCE_DIR}/version.h)
@@ -7,13 +7,17 @@ set(audio-monitor_HEADERS
 	audio-monitor-filter.h
 	audio-monitor-dock.hpp
 	audio-control.hpp
+	audio-output-control.hpp
 	volume-meter.hpp
+	utils.hpp
 	version.h)
 set(audio-monitor_SOURCES
 	audio-monitor-filter.c
 	audio-monitor-dock.cpp
 	audio-control.cpp
-	volume-meter.cpp)
+	audio-output-control.cpp
+	volume-meter.cpp
+	utils.cpp)
 
 if(WIN32)
 	get_filename_component(ISS_FILES_DIR "${CMAKE_BINARY_DIR}\\..\\package" ABSOLUTE)

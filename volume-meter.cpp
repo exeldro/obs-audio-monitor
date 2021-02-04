@@ -198,7 +198,8 @@ void VolumeMeter::setInputPeakHoldDuration(qreal v)
 
 void VolumeMeter::setPeakMeterType(enum obs_peak_meter_type peakMeterType)
 {
-	obs_volmeter_set_peak_meter_type(obs_volmeter, peakMeterType);
+	if (obs_volmeter)
+		obs_volmeter_set_peak_meter_type(obs_volmeter, peakMeterType);
 	switch (peakMeterType) {
 	case TRUE_PEAK_METER:
 		// For true-peak meters EBU has defined the Permitted Maximum,
@@ -331,7 +332,9 @@ inline void VolumeMeter::handleChannelCofigurationChange()
 {
 	QMutexLocker locker(&dataMutex);
 
-	int currentNrAudioChannels = obs_volmeter_get_nr_channels(obs_volmeter);
+	int currentNrAudioChannels =
+		obs_volmeter ? obs_volmeter_get_nr_channels(obs_volmeter)
+			     : audio_output_get_info(obs_get_audio())->speakers;
 	if (displayNrAudioChannels != currentNrAudioChannels) {
 		displayNrAudioChannels = currentNrAudioChannels;
 

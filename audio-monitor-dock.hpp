@@ -5,6 +5,7 @@
 
 #include "obs.h"
 #include "audio-control.hpp"
+#include "audio-monitor-filter.h"
 
 class AudioMonitorDock : public QDockWidget {
 	Q_OBJECT
@@ -14,9 +15,10 @@ private:
 	QMap<QString, QString> audioDevices;
 
 	void addAudioControl(obs_source_t *source, int column,
-			     obs_source_t *filter);
+	                     obs_source_t *filter);
 	void moveAudioControl(int fromColumn, int toColumn);
 	void addFilter(int column, obs_source_t *filter);
+	void addOutputTrack(int i, obs_data_t *obs_data = nullptr);
 	static void OBSSignal(void *data, const char *signal,
 			      calldata_t *calldata);
 
@@ -40,6 +42,9 @@ private slots:
 	void RenameAudioControl(QString new_name, QString prev_name);
 	void AddFilter(OBSSource source, OBSSource filter);
 	void RemoveFilter(QString sourceName, QString filterName);
+	void LoadTrackMenu();
+	void ShowOutputChanged();
+	void OutputDeviceChanged();
 
 public:
 	AudioMonitorDock(QWidget *parent = nullptr);

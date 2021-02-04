@@ -2,16 +2,12 @@
 
 #include <QCheckBox>
 #include <QVBoxLayout>
+#include "utils.hpp"
 
 #include "obs-module.h"
 
-#define QT_UTF8(str) QString::fromUtf8(str)
-#define QT_TO_UTF8(str) str.toUtf8().constData()
-
 AudioControl::AudioControl(OBSWeakSource source_)
 	: source(std::move(source_)),
-	  levelTotal(0.0f),
-	  levelCount(0.0f),
 	  obs_volmeter(obs_volmeter_create(OBS_FADER_LOG))
 {
 	obs_source_t *s = obs_weak_source_get_source(source);
@@ -452,27 +448,4 @@ void AudioControl::SliderChanged(int vol)
 	obs_source_release(f);
 }
 
-LockedCheckBox::LockedCheckBox() {}
 
-LockedCheckBox::LockedCheckBox(QWidget *parent) : QCheckBox(parent) {}
-
-SliderIgnoreScroll::SliderIgnoreScroll(QWidget *parent) : QSlider(parent)
-{
-	setFocusPolicy(Qt::StrongFocus);
-}
-
-SliderIgnoreScroll::SliderIgnoreScroll(Qt::Orientation orientation,
-				       QWidget *parent)
-	: QSlider(parent)
-{
-	setFocusPolicy(Qt::StrongFocus);
-	setOrientation(orientation);
-}
-
-void SliderIgnoreScroll::wheelEvent(QWheelEvent *event)
-{
-	if (!hasFocus())
-		event->ignore();
-	else
-		QSlider::wheelEvent(event);
-}

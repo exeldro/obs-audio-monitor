@@ -234,6 +234,7 @@ struct audio_monitor *audio_monitor_create(const char *device_id)
 	struct audio_monitor *audio_monitor =
 		bzalloc(sizeof(struct audio_monitor));
 	audio_monitor->device_id = bstrdup(device_id);
+	audio_monitor->volume = 1.0f;
 	pthread_mutex_init(&audio_monitor->mutex, NULL);
 	return audio_monitor;
 }

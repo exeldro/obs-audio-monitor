@@ -18,11 +18,8 @@ private:
 	const int sliderRow = 1;
 	const int muteRow = 2;
 
-	int track;
 	OBSWeakSource source;
 	VolumeMeter *volMeter;
-	float levelTotal;
-	float levelCount;
 	obs_volmeter_t *obs_volmeter;
 	QGridLayout *mainLayout;
 
@@ -59,28 +56,4 @@ public:
 
 	//void SetMeterDecayRate(qreal q);
 	//void setPeakMeterType(enum obs_peak_meter_type peakMeterType);
-};
-
-class LockedCheckBox : public QCheckBox {
-	Q_OBJECT
-
-public:
-	LockedCheckBox();
-	explicit LockedCheckBox(QWidget *parent);
-};
-
-class MuteCheckBox : public QCheckBox {
-	Q_OBJECT
-};
-
-class SliderIgnoreScroll : public QSlider {
-	Q_OBJECT
-
-public:
-	SliderIgnoreScroll(QWidget *parent = nullptr);
-	SliderIgnoreScroll(Qt::Orientation orientation,
-			   QWidget *parent = nullptr);
-
-protected:
-	virtual void wheelEvent(QWheelEvent *event) override;
 };
