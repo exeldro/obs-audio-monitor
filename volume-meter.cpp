@@ -238,7 +238,9 @@ void VolumeMeter::mousePressEvent(QMouseEvent *event)
 
 void VolumeMeter::wheelEvent(QWheelEvent *event)
 {
-	QApplication::sendEvent(focusProxy(), event);
+	auto *proxy = focusProxy();
+	if (proxy)
+		QApplication::sendEvent(proxy, event);
 }
 
 VolumeMeter::VolumeMeter(QWidget *parent, obs_volmeter_t *obs_volmeter)
