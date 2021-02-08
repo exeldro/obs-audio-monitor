@@ -30,6 +30,8 @@ private:
 	static void OBSVolume(void *data, calldata_t *calldata);
 	static void OBSMute(void *data, calldata_t *calldata);
 	static void OBSFilterRename(void *data, calldata_t *calldata);
+	static void OBSFilterUpdated(void *data, calldata_t *calldata);
+	static void OBSFilterEnable(void *data, calldata_t *calldata);
 
 	void addFilterColumn(int i, obs_source_t *filter);
 
@@ -40,7 +42,9 @@ private slots:
 	void SetOutputVolume(double volume);
 	void SetMute(bool muted);
 	void RenameFilter(QString prev_name, QString new_name);
-signals:
+	void FilterUpdated(QString name, double volume, bool locked);
+	void FilterEnable(QString name, bool enabled);
+signals :
 
 public:
 	explicit AudioControl(OBSWeakSource source);

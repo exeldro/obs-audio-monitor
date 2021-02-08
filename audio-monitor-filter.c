@@ -70,9 +70,15 @@ static void audio_monitor_update(void *data, obs_data_t *settings)
 		     LOG_OFFSET_DB;
 	const float mul = isfinite((double)db) ? powf(10.0f, db / 20.0f) : 0.0f;
 
-	audio_monitor_set_volume(
-		audio_monitor->monitor,
-		mul);
+	audio_monitor_set_volume(audio_monitor->monitor, mul);
+
+	struct calldata cd;
+	uint8_t stack[128];
+	calldata_init_fixed(&cd, stack, sizeof(stack));
+	calldata_set_ptr(&cd, "source", audio_monitor->source);
+	signal_handler_signal(
+		obs_source_get_signal_handler(audio_monitor->source), "updated",
+		&cd);
 }
 
 static void *audio_monitor_filter_create(obs_data_t *settings,
@@ -81,6 +87,8 @@ static void *audio_monitor_filter_create(obs_data_t *settings,
 	struct audio_monitor_context *audio_monitor =
 		bzalloc(sizeof(struct audio_monitor_context));
 	audio_monitor->source = source;
+	signal_handler_add(obs_source_get_signal_handler(source),
+			   "void updated(ptr source)");
 	audio_monitor_update(audio_monitor, settings);
 	return audio_monitor;
 }

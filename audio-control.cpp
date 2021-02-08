@@ -53,6 +53,16 @@ AudioControl::~AudioControl()
 							filter),
 						"rename", OBSFilterRename,
 						this);
+					signal_handler_disconnect(
+						obs_source_get_signal_handler(
+							filter),
+						"updated", OBSFilterUpdated,
+						this);
+					signal_handler_disconnect(
+						obs_source_get_signal_handler(
+							filter),
+						"enable", OBSFilterEnable,
+						this);
 					obs_source_release(filter);
 				}
 			}
@@ -198,9 +208,9 @@ void AudioControl::ShowOutputSlider(bool output)
 			def = 1.0f;
 		else if (db <= -96.0f)
 			def = 0.0f;
-		else 
+		else
 			def = (-log10f(-db + LOG_OFFSET_DB) - LOG_RANGE_VAL) /
-		       (LOG_OFFSET_VAL - LOG_RANGE_VAL);
+			      (LOG_OFFSET_VAL - LOG_RANGE_VAL);
 		slider->setValue(def * 10000.0f);
 
 		connect(slider, SIGNAL(valueChanged(int)), this,
@@ -303,6 +313,76 @@ void AudioControl::OBSFilterRename(void *data, calldata_t *call_data)
 				  Q_ARG(QString, QT_UTF8(new_name)));
 }
 
+void AudioControl::OBSFilterEnable(void *data, calldata_t *call_data)
+{
+	obs_source_t *filter;
+	calldata_get_ptr(call_data, "source", &filter);
+	bool enabled = calldata_bool(call_data, "enabled");
+	QString filterName = QT_UTF8(obs_source_get_name(filter));
+	AudioControl *audioControl = static_cast<AudioControl *>(data);
+	QMetaObject::invokeMethod(audioControl, "FilterEnable",
+				  Q_ARG(QString, filterName),
+				  Q_ARG(bool, enabled));
+}
+
+void AudioControl::FilterEnable(QString name, bool enabled)
+{
+	int columns = mainLayout->columnCount();
+	for (int column = 2; column < columns; column++) {
+		QLayoutItem *item =
+			mainLayout->itemAtPosition(sliderRow, column);
+		if (!item)
+			continue;
+		auto *l = static_cast<QLabel *>(item->widget());
+		if (l->objectName() == name) {
+			item = mainLayout->itemAtPosition(muteRow, column);
+			QCheckBox *checkbox =
+				reinterpret_cast<QCheckBox *>(item->widget());
+			if (checkbox->isChecked() == enabled)
+				checkbox->setChecked(!enabled);
+		}
+	}
+}
+
+void AudioControl::OBSFilterUpdated(void *data, calldata_t *call_data)
+{
+	obs_source_t *filter;
+	calldata_get_ptr(call_data, "source", &filter);
+	QString filterName = QT_UTF8(obs_source_get_name(filter));
+	obs_data_t *settings = obs_source_get_settings(filter);
+	double volume = obs_data_get_double(settings, "volume");
+	bool locked = obs_data_get_bool(settings, "locked");
+	obs_data_release(settings);
+	AudioControl *audioControl = static_cast<AudioControl *>(data);
+	QMetaObject::invokeMethod(audioControl, "FilterUpdated",
+				  Q_ARG(QString, filterName),
+				  Q_ARG(double, volume), Q_ARG(bool, locked));
+}
+
+void AudioControl::FilterUpdated(QString name, double volume, bool locked)
+{
+	int columns = mainLayout->columnCount();
+	for (int column = 2; column < columns; column++) {
+		QLayoutItem *item =
+			mainLayout->itemAtPosition(sliderRow, column);
+		if (!item)
+			continue;
+		auto *l = static_cast<QLabel *>(item->widget());
+		if (l->objectName() == name) {
+			auto *slider = static_cast<QSlider *>(item->widget());
+			int def = volume * 100.0;
+			if (slider->value() != def) {
+				slider->setValue(def);
+			}
+			item = mainLayout->itemAtPosition(lockRow, column);
+			QCheckBox *checkbox =
+				reinterpret_cast<QCheckBox *>(item->widget());
+			if (checkbox->isChecked() != locked)
+				checkbox->setChecked(locked);
+		}
+	}
+}
+
 void AudioControl::RenameFilter(QString prev_name, QString new_name)
 {
 	int columns = mainLayout->columnCount();
@@ -330,6 +410,12 @@ void AudioControl::RemoveFilter(QString filterName)
 			signal_handler_disconnect(
 				obs_source_get_signal_handler(filter), "rename",
 				OBSFilterRename, this);
+			signal_handler_disconnect(
+				obs_source_get_signal_handler(filter),
+				"updated", OBSFilterUpdated, this);
+			signal_handler_disconnect(
+				obs_source_get_signal_handler(filter), "enable",
+				OBSFilterEnable, this);
 			obs_source_release(filter);
 		}
 		obs_source_release(s);
@@ -410,6 +496,11 @@ void AudioControl::addFilterColumn(int column, obs_source_t *filter)
 {
 	signal_handler_connect(obs_source_get_signal_handler(filter), "rename",
 			       OBSFilterRename, this);
+	signal_handler_connect(obs_source_get_signal_handler(filter), "updated",
+			       OBSFilterUpdated, this);
+	signal_handler_connect(obs_source_get_signal_handler(filter), "enable",
+			       OBSFilterEnable, this);
+
 	obs_data_t *settings = obs_source_get_settings(filter);
 	bool lock = obs_data_get_bool(settings, "locked");
 	auto *locked = new LockedCheckBox();
@@ -487,5 +578,3 @@ void AudioControl::SliderChanged(int vol)
 	obs_source_update(f, nullptr);
 	obs_source_release(f);
 }
-
-
