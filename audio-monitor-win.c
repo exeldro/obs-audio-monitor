@@ -59,20 +59,28 @@ void audio_monitor_stop(struct audio_monitor *audio_monitor)
 {
 	if (!audio_monitor)
 		return;
+
+	pthread_mutex_lock(&audio_monitor->mutex);
+
 	if (audio_monitor->client)
 		audio_monitor->client->lpVtbl->Stop(audio_monitor->client);
 
 	safe_release(audio_monitor->device);
+	audio_monitor->device = NULL;
 	safe_release(audio_monitor->client);
+	audio_monitor->client = NULL;
 	safe_release(audio_monitor->render);
+	audio_monitor->render = NULL;
 	audio_resampler_destroy(audio_monitor->resampler);
 	audio_monitor->resampler = NULL;
+	pthread_mutex_unlock(&audio_monitor->mutex);
 }
 
 void audio_monitor_start(struct audio_monitor *audio_monitor)
 {
 	if (!audio_monitor)
 		return;
+	pthread_mutex_lock(&audio_monitor->mutex);
 	const struct audio_output_info *info =
 		audio_output_get_info(obs_get_audio());
 	IMMDeviceEnumerator *immde = NULL;
@@ -162,16 +170,15 @@ void audio_monitor_start(struct audio_monitor *audio_monitor)
 	hr = audio_monitor->client->lpVtbl->Start(audio_monitor->client);
 
 	safe_release(immde);
+	pthread_mutex_unlock(&audio_monitor->mutex);
 }
 
 void audio_monitor_audio(void *data, struct obs_audio_data *audio)
 {
 	struct audio_monitor *audio_monitor = data;
 	if (!audio_monitor->resampler && audio_monitor->device_id &&
-	    strlen(audio_monitor->device_id) &&
-	    pthread_mutex_trylock(&audio_monitor->mutex) == 0) {
+	    strlen(audio_monitor->device_id)) {
 		audio_monitor_start(audio_monitor);
-		pthread_mutex_unlock(&audio_monitor->mutex);
 	}
 	if (!audio_monitor->resampler ||
 	    pthread_mutex_trylock(&audio_monitor->mutex) != 0)

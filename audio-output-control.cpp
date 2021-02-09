@@ -82,9 +82,9 @@ AudioOutputControl::AudioOutputControl(int track, obs_data_t *settings)
 					audio_monitor_start(monitor);
 					audioDevices[device_id] = monitor;
 				}
-				addDeviceColumn(i + 1,device_id
-						,
-						QT_UTF8(obs_data_get_string(device,
+				addDeviceColumn(
+					i + 1, device_id,
+					QT_UTF8(obs_data_get_string(device,
 								    "name")),
 					obs_data_get_double(device, "volume"),
 					obs_data_get_bool(device, "muted"),
@@ -280,13 +280,12 @@ void AudioOutputControl::OBSOutputAudio(void *param, size_t mix_idx,
 					control->muteRow, column);
 				if (!item)
 					continue;
-				auto* mute = reinterpret_cast<QCheckBox *>(
+				auto *mute = reinterpret_cast<QCheckBox *>(
 					item->widget());
 				if (mute->isChecked())
 					muted = true;
 				break;
 			}
-
 		}
 		if (!muted) {
 			audio_monitor *monitor = d.value();
