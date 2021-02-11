@@ -25,8 +25,7 @@ MODULE_EXPORT void load_audio_monitor_dock()
 	obs_frontend_pop_ui_translation();
 }
 
-AudioMonitorDock::AudioMonitorDock(QWidget *parent)
-	: QDockWidget(parent)
+AudioMonitorDock::AudioMonitorDock(QWidget *parent) : QDockWidget(parent)
 {
 
 	mainLayout = new QGridLayout;
@@ -307,8 +306,8 @@ void AudioMonitorDock::AddFilter(OBSSource source, OBSSource filter)
 {
 
 	const int columns = mainLayout->columnCount();
-	if (columns <= 1) {
-		addAudioControl(source, 1, filter);
+	if (columns <= MAX_AUDIO_MIXES + 1) {
+		addAudioControl(source, MAX_AUDIO_MIXES + 1, filter);
 		return;
 	}
 	QString sourceName = QT_UTF8(obs_source_get_name(source));
@@ -434,7 +433,7 @@ bool AudioMonitorDock::OBSAddAudioDevice(void *data, const char *name,
 	if (!id || !strlen(id))
 		return true;
 	AudioMonitorDock *dock = static_cast<AudioMonitorDock *>(data);
-	if(!name || !strlen(name)) {
+	if (!name || !strlen(name)) {
 		dock->audioDevices[QT_UTF8(id)] = QT_UTF8(id);
 	} else {
 		dock->audioDevices[QT_UTF8(id)] = QT_UTF8(name);
@@ -533,7 +532,7 @@ void AudioMonitorDock::OutputDeviceChanged()
 	QString device_id = a->property("device_id").toString();
 	if (checked) {
 		control->AddDevice(device_id, a->text());
-	}else {
+	} else {
 		control->RemoveDevice(device_id);
 	}
 }

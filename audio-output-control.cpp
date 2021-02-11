@@ -108,6 +108,8 @@ AudioOutputControl::~AudioOutputControl()
 void AudioOutputControl::OBSOutputAudio(void *param, size_t mix_idx,
 					struct audio_data *data)
 {
+	if (!data)
+		return;
 	AudioOutputControl *control = static_cast<AudioOutputControl *>(param);
 
 	const struct audio_output_info *info =
@@ -261,7 +263,10 @@ void AudioOutputControl::OBSOutputAudio(void *param, size_t mix_idx,
 
 	struct obs_audio_data audio;
 	for (size_t i = 0; i < MAX_AV_PLANES; i++) {
-		audio.data[i] = data->data[i];
+		if (i < nr_channels)
+			audio.data[i] = data->data[i];
+		else
+			audio.data[i] = nullptr;
 	}
 	audio.frames = data->frames;
 	audio.timestamp = data->timestamp;
