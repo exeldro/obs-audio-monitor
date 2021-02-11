@@ -431,8 +431,14 @@ void AudioMonitorDock::addFilter(int column, obs_source_t *filter)
 bool AudioMonitorDock::OBSAddAudioDevice(void *data, const char *name,
 					 const char *id)
 {
+	if (!id || !strlen(id))
+		return true;
 	AudioMonitorDock *dock = static_cast<AudioMonitorDock *>(data);
-	dock->audioDevices[id] = name;
+	if(!name || !strlen(name)) {
+		dock->audioDevices[QT_UTF8(id)] = QT_UTF8(id);
+	} else {
+		dock->audioDevices[QT_UTF8(id)] = QT_UTF8(name);
+	}
 	return true;
 }
 
@@ -494,8 +500,6 @@ void AudioMonitorDock::LoadTrackMenu()
 		a->setChecked(output->HasDevice(d.key()));
 		connect(a, SIGNAL(triggered()), this,
 			SLOT(OutputDeviceChanged()));
-		//d.key(); // device_id
-		//d.value(); //device_name
 		++d;
 	}
 }

@@ -209,16 +209,16 @@ void audio_monitor_audio(void *data, struct obs_audio_data *audio)
 	HRESULT hr = audio_monitor->client->lpVtbl->GetCurrentPadding(
 		audio_monitor->client, &pad);
 	if (FAILED(hr)) {
-		audio_monitor_stop(audio_monitor);
 		pthread_mutex_unlock(&audio_monitor->mutex);
+		audio_monitor_stop(audio_monitor);
 		return;
 	}
 	BYTE *output;
 	hr = audio_monitor->render->lpVtbl->GetBuffer(audio_monitor->render,
 						      resample_frames, &output);
 	if (FAILED(hr)) {
-		audio_monitor_stop(audio_monitor);
 		pthread_mutex_unlock(&audio_monitor->mutex);
+		audio_monitor_stop(audio_monitor);
 		return;
 	}
 

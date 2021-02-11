@@ -104,7 +104,8 @@ struct obs_audio_data *audio_monitor_filter_audio(void *data,
 						  struct obs_audio_data *audio)
 {
 	struct audio_monitor_context *audio_monitor = data;
-	audio_monitor_audio(audio_monitor->monitor, audio);
+	if (audio_monitor->monitor)
+		audio_monitor_audio(audio_monitor->monitor, audio);
 	return audio;
 }
 

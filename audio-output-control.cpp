@@ -116,7 +116,7 @@ void AudioOutputControl::OBSOutputAudio(void *param, size_t mix_idx,
 
 	int nr_samples = data->frames;
 	int channel_nr = 0;
-	for (int plane_nr = 0; channel_nr < nr_channels; plane_nr++) {
+	for (int plane_nr = 0; plane_nr < nr_channels; plane_nr++) {
 		float *samples = (float *)data->data[plane_nr];
 		if (!samples) {
 			continue;
@@ -229,7 +229,7 @@ void AudioOutputControl::OBSOutputAudio(void *param, size_t mix_idx,
 	}
 
 	channel_nr = 0;
-	for (int plane_nr = 0; channel_nr < nr_channels; plane_nr++) {
+	for (int plane_nr = 0; plane_nr < nr_channels; plane_nr++) {
 		float *samples = (float *)data->data[plane_nr];
 		if (!samples) {
 			continue;
@@ -358,6 +358,8 @@ obs_data_t *AudioOutputControl::GetSettings()
 
 bool AudioOutputControl::HasDevice(QString device_id)
 {
+	if (device_id.isEmpty())
+		return false;
 	auto it = audioDevices.find(device_id);
 	return it != audioDevices.end();
 }
