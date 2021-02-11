@@ -53,7 +53,8 @@ static void audio_monitor_update(void *data, obs_data_t *settings)
 					    d.device_name);
 		}
 		audio_monitor_destroy(audio_monitor->monitor);
-		audio_monitor->monitor = audio_monitor_create(device_id);
+		audio_monitor->monitor = audio_monitor_create(
+			device_id, obs_source_get_name(audio_monitor->source));
 		audio_monitor_start(audio_monitor->monitor);
 	}
 	float def = (float)obs_data_get_double(settings, "volume") / 100.0f;
