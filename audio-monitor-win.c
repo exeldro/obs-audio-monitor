@@ -1,4 +1,5 @@
 #include "audio-monitor-win.h"
+
 #include <obs.h>
 #include <media-io/audio-resampler.h>
 #include <util/threading.h>
@@ -35,6 +36,11 @@ struct audio_monitor {
 	float volume;
 	pthread_mutex_t mutex;
 	char *device_id;
+	char *source_name;
+	SOCKET sock;
+	struct sockaddr_storage addrDest;
+	uint32_t nuFrame;
+	byte sr;
 };
 
 static enum speaker_layout convert_speaker_layout(DWORD layout, WORD channels)
@@ -80,96 +86,148 @@ void audio_monitor_start(struct audio_monitor *audio_monitor)
 {
 	if (!audio_monitor)
 		return;
+
 	pthread_mutex_lock(&audio_monitor->mutex);
 	const struct audio_output_info *info =
 		audio_output_get_info(obs_get_audio());
-	IMMDeviceEnumerator *immde = NULL;
-	HRESULT hr = CoCreateInstance(&CLSID_MMDeviceEnumerator, NULL,
-				      CLSCTX_ALL, &IID_IMMDeviceEnumerator,
-				      (void **)&immde);
-	if (FAILED(hr)) {
-		pthread_mutex_unlock(&audio_monitor->mutex);
-		return;
-	}
-	if (strcmp(audio_monitor->device_id, "default") == 0) {
-		hr = immde->lpVtbl->GetDefaultAudioEndpoint(
-			immde, eRender, eConsole, &audio_monitor->device);
-	} else {
-		wchar_t w_id[512];
-		os_utf8_to_wcs(audio_monitor->device_id, 0, w_id, 512);
-
-		hr = immde->lpVtbl->GetDevice(immde, w_id,
-					      &audio_monitor->device);
-	}
-	if (FAILED(hr)) {
-		safe_release(immde);
-		pthread_mutex_unlock(&audio_monitor->mutex);
-		return;
-	}
-	hr = audio_monitor->device->lpVtbl->Activate(
-		audio_monitor->device, &IID_IAudioClient, CLSCTX_ALL, NULL,
-		(void **)&audio_monitor->client);
-	if (FAILED(hr)) {
-		safe_release(immde);
-		pthread_mutex_unlock(&audio_monitor->mutex);
-		return;
-	}
-	WAVEFORMATEX *wfex = NULL;
-	hr = audio_monitor->client->lpVtbl->GetMixFormat(audio_monitor->client,
-							 &wfex);
-	if (FAILED(hr)) {
-		safe_release(immde);
-		pthread_mutex_unlock(&audio_monitor->mutex);
-		return;
-	}
-	hr = audio_monitor->client->lpVtbl->Initialize(audio_monitor->client,
-						       AUDCLNT_SHAREMODE_SHARED,
-						       0, 10000000, 0, wfex,
-						       NULL);
-	if (FAILED(hr)) {
-		safe_release(immde);
-		CoTaskMemFree(wfex);
-		pthread_mutex_unlock(&audio_monitor->mutex);
-		return;
-	}
-	WAVEFORMATEXTENSIBLE *ext = (WAVEFORMATEXTENSIBLE *)wfex;
-	struct resample_info from;
 	struct resample_info to;
-
+	struct resample_info from;
 	from.samples_per_sec = info->samples_per_sec;
 	from.speakers = info->speakers;
 	from.format = AUDIO_FORMAT_FLOAT_PLANAR;
+	if (!audio_monitor->sock) {
+		IMMDeviceEnumerator *immde = NULL;
+		HRESULT hr = CoCreateInstance(&CLSID_MMDeviceEnumerator, NULL,
+					      CLSCTX_ALL,
+					      &IID_IMMDeviceEnumerator,
+					      (void **)&immde);
+		if (FAILED(hr)) {
+			pthread_mutex_unlock(&audio_monitor->mutex);
+			return;
+		}
+		if (strcmp(audio_monitor->device_id, "default") == 0) {
+			hr = immde->lpVtbl->GetDefaultAudioEndpoint(
+				immde, eRender, eConsole,
+				&audio_monitor->device);
+		} else {
+			wchar_t w_id[512];
+			os_utf8_to_wcs(audio_monitor->device_id, 0, w_id, 512);
 
-	to.samples_per_sec = (uint32_t)wfex->nSamplesPerSec;
-	to.speakers =
-		convert_speaker_layout(ext->dwChannelMask, wfex->nChannels);
-	to.format = AUDIO_FORMAT_FLOAT;
-	audio_monitor->sample_rate = (uint32_t)wfex->nSamplesPerSec;
-	audio_monitor->channels = wfex->nChannels;
+			hr = immde->lpVtbl->GetDevice(immde, w_id,
+						      &audio_monitor->device);
+		}
+		if (FAILED(hr)) {
+			safe_release(immde);
+			pthread_mutex_unlock(&audio_monitor->mutex);
+			return;
+		}
+		hr = audio_monitor->device->lpVtbl->Activate(
+			audio_monitor->device, &IID_IAudioClient, CLSCTX_ALL,
+			NULL, (void **)&audio_monitor->client);
+		if (FAILED(hr)) {
+			safe_release(immde);
+			pthread_mutex_unlock(&audio_monitor->mutex);
+			return;
+		}
+		WAVEFORMATEX *wfex = NULL;
+		hr = audio_monitor->client->lpVtbl->GetMixFormat(
+			audio_monitor->client, &wfex);
+		if (FAILED(hr)) {
+			safe_release(immde);
+			pthread_mutex_unlock(&audio_monitor->mutex);
+			return;
+		}
+		hr = audio_monitor->client->lpVtbl->Initialize(
+			audio_monitor->client, AUDCLNT_SHAREMODE_SHARED, 0,
+			10000000, 0, wfex, NULL);
+		if (FAILED(hr)) {
+			safe_release(immde);
+			CoTaskMemFree(wfex);
+			pthread_mutex_unlock(&audio_monitor->mutex);
+			return;
+		}
+		WAVEFORMATEXTENSIBLE *ext = (WAVEFORMATEXTENSIBLE *)wfex;
+		to.samples_per_sec = (uint32_t)wfex->nSamplesPerSec;
+		to.speakers = convert_speaker_layout(ext->dwChannelMask,
+						     wfex->nChannels);
+		to.format = AUDIO_FORMAT_FLOAT;
+		audio_monitor->sample_rate = (uint32_t)wfex->nSamplesPerSec;
+		audio_monitor->channels = wfex->nChannels;
 
-	CoTaskMemFree(wfex);
+		CoTaskMemFree(wfex);
+
+		UINT32 frames;
+		hr = audio_monitor->client->lpVtbl->GetBufferSize(
+			audio_monitor->client, &frames);
+		if (FAILED(hr)) {
+			safe_release(immde);
+			pthread_mutex_unlock(&audio_monitor->mutex);
+			return;
+		}
+		hr = audio_monitor->client->lpVtbl->GetService(
+			audio_monitor->client, &IID_IAudioRenderClient,
+			(void **)&audio_monitor->render);
+		if (FAILED(hr)) {
+			safe_release(immde);
+			pthread_mutex_unlock(&audio_monitor->mutex);
+			return;
+		}
+		hr = audio_monitor->client->lpVtbl->Start(
+			audio_monitor->client);
+
+		safe_release(immde);
+	} else {
+		audio_monitor->channels = info->speakers;
+		if (info->samples_per_sec == 6000) {
+			audio_monitor->sr = 0;
+		} else if (info->samples_per_sec == 12000) {
+			audio_monitor->sr = 1;
+		} else if (info->samples_per_sec == 24000) {
+			audio_monitor->sr = 2;
+		} else if (info->samples_per_sec == 48000) {
+			audio_monitor->sr = 3;
+		} else if (info->samples_per_sec == 96000) {
+			audio_monitor->sr = 4;
+		} else if (info->samples_per_sec == 192000) {
+			audio_monitor->sr = 5;
+		} else if (info->samples_per_sec == 384000) {
+			audio_monitor->sr = 6;
+		} else if (info->samples_per_sec == 8000) {
+			audio_monitor->sr = 7;
+		} else if (info->samples_per_sec == 16000) {
+			audio_monitor->sr = 8;
+		} else if (info->samples_per_sec == 32000) {
+			audio_monitor->sr = 9;
+		} else if (info->samples_per_sec == 64000) {
+			audio_monitor->sr = 10;
+		} else if (info->samples_per_sec == 128000) {
+			audio_monitor->sr = 11;
+		} else if (info->samples_per_sec == 256000) {
+			audio_monitor->sr = 12;
+		} else if (info->samples_per_sec == 512000) {
+			audio_monitor->sr = 13;
+		} else if (info->samples_per_sec == 11025) {
+			audio_monitor->sr = 14;
+		} else if (info->samples_per_sec == 22050) {
+			audio_monitor->sr = 15;
+		} else if (info->samples_per_sec == 44100) {
+			audio_monitor->sr = 16;
+		} else if (info->samples_per_sec == 88200) {
+			audio_monitor->sr = 17;
+		} else if (info->samples_per_sec == 176400) {
+			audio_monitor->sr = 18;
+		} else if (info->samples_per_sec == 352800) {
+			audio_monitor->sr = 19;
+		} else if (info->samples_per_sec == 705600) {
+			audio_monitor->sr = 20;
+		}
+
+		to.samples_per_sec = info->samples_per_sec;
+		to.speakers = info->speakers;
+		to.format = AUDIO_FORMAT_FLOAT;
+	}
 
 	audio_monitor->resampler = audio_resampler_create(&to, &from);
-
-	UINT32 frames;
-	hr = audio_monitor->client->lpVtbl->GetBufferSize(audio_monitor->client,
-							  &frames);
-	if (FAILED(hr)) {
-		safe_release(immde);
-		pthread_mutex_unlock(&audio_monitor->mutex);
-		return;
-	}
-	hr = audio_monitor->client->lpVtbl->GetService(
-		audio_monitor->client, &IID_IAudioRenderClient,
-		(void **)&audio_monitor->render);
-	if (FAILED(hr)) {
-		safe_release(immde);
-		pthread_mutex_unlock(&audio_monitor->mutex);
-		return;
-	}
-	hr = audio_monitor->client->lpVtbl->Start(audio_monitor->client);
-
-	safe_release(immde);
 	pthread_mutex_unlock(&audio_monitor->mutex);
 }
 
@@ -205,6 +263,56 @@ void audio_monitor_audio(void *data, struct obs_audio_data *audio)
 			*(cur++) *= audio_monitor->volume;
 	}
 
+	if (audio_monitor->sock) {
+
+		size_t sample_size = audio_monitor->channels * 4;
+		size_t frames_per_packet = 1436 / sample_size;
+		for (size_t pos = 0; pos < resample_frames;
+		     pos += frames_per_packet) {
+			size_t msg_length =
+				28 + audio_monitor->channels * 4 *
+					     (pos + frames_per_packet <=
+							      resample_frames
+						      ? frames_per_packet
+						      : resample_frames - pos);
+			byte *msg = bzalloc(msg_length);
+			msg[0] = 'V';
+			msg[1] = 'B';
+			msg[2] = 'A';
+			msg[3] = 'N';
+			msg[4] = audio_monitor->sr;
+
+			if (pos + frames_per_packet <= resample_frames) {
+				msg[5] = frames_per_packet - 1;
+			} else {
+				msg[5] = resample_frames - pos - 1;
+			}
+			msg[6] = audio_monitor->channels - 1;
+			msg[7] = 4;
+
+			const size_t len = strlen(audio_monitor->source_name);
+			memcpy(msg + 8, audio_monitor->source_name,
+			       len > 16 ? 16 : len);
+
+			memcpy(msg + 24, &audio_monitor->nuFrame,
+			       sizeof(uint32_t));
+			audio_monitor->nuFrame++;
+
+			memcpy(msg + 28,
+			       resample_data[0] +
+				       pos * 4 * audio_monitor->channels,
+			       msg_length - 28);
+			int result = sendto(
+				audio_monitor->sock, msg, msg_length, 0,
+				(struct sockaddr *)&audio_monitor->addrDest,
+				sizeof(audio_monitor->addrDest));
+			bfree(msg);
+		}
+
+		pthread_mutex_unlock(&audio_monitor->mutex);
+		return;
+	}
+
 	UINT32 pad = 0;
 	HRESULT hr = audio_monitor->client->lpVtbl->GetCurrentPadding(
 		audio_monitor->client, &pad);
@@ -236,13 +344,41 @@ void audio_monitor_set_volume(struct audio_monitor *audio_monitor, float volume)
 	audio_monitor->volume = volume;
 }
 
-struct audio_monitor *audio_monitor_create(const char *device_id)
+int resolvehelper(const char *hostname, int family, const char *service,
+		  struct sockaddr_storage *pAddr)
+{
+	int result;
+	struct addrinfo *result_list = NULL;
+	struct addrinfo hints = {0};
+	hints.ai_family = family;
+	hints.ai_socktype =
+		SOCK_DGRAM; // without this flag, getaddrinfo will return 3x the number of addresses (one for each socket type).
+	result = getaddrinfo(hostname, service, &hints, &result_list);
+	if (result == 0) {
+		//ASSERT(result_list->ai_addrlen <= sizeof(sockaddr_in));
+		memcpy(pAddr, result_list->ai_addr, result_list->ai_addrlen);
+		freeaddrinfo(result_list);
+	}
+
+	return result;
+}
+
+struct audio_monitor *audio_monitor_create(const char *device_id,
+					   const char *source_name, int port)
 {
 	struct audio_monitor *audio_monitor =
 		bzalloc(sizeof(struct audio_monitor));
 	audio_monitor->device_id = bstrdup(device_id);
+	audio_monitor->source_name = bstrdup(source_name);
 	audio_monitor->volume = 1.0f;
 	pthread_mutex_init(&audio_monitor->mutex, NULL);
+	if (port) {
+		char buffer[10];
+		snprintf(buffer, 10, "%d", port);
+		audio_monitor->sock = socket(AF_INET, SOCK_DGRAM, 0);
+		resolvehelper(device_id, AF_INET, buffer,
+			      &audio_monitor->addrDest);
+	}
 	return audio_monitor;
 }
 
@@ -251,6 +387,7 @@ void audio_monitor_destroy(struct audio_monitor *audio_monitor)
 	if (!audio_monitor)
 		return;
 	audio_monitor_stop(audio_monitor);
+	bfree(audio_monitor->source_name);
 	bfree(audio_monitor->device_id);
 	bfree(audio_monitor);
 }

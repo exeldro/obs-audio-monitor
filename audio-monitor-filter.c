@@ -34,13 +34,16 @@ bool updateFilterName(void *data, const char *name, const char *id)
 #define LOG_OFFSET_DB 6.0f
 #define LOG_RANGE_DB 96.0f
 
-
 static void audio_monitor_update(void *data, obs_data_t *settings)
 {
 	struct audio_monitor_context *audio_monitor = data;
 
-	const char *device_id = obs_data_get_string(settings, "device");
-
+	int port = 0;
+	char *device_id = obs_data_get_string(settings, "device");
+	if (strcmp(device_id, "VBAN") == 0) {
+		device_id = obs_data_get_string(settings, "ip");
+		port = obs_data_get_int(settings, "port");
+	}
 	if (!audio_monitor->monitor ||
 	    strcmp(audio_monitor_get_device_id(audio_monitor->monitor),
 		   device_id) != 0) {
@@ -53,7 +56,9 @@ static void audio_monitor_update(void *data, obs_data_t *settings)
 					    d.device_name);
 		}
 		audio_monitor_destroy(audio_monitor->monitor);
-		audio_monitor->monitor = audio_monitor_create(device_id);
+		audio_monitor->monitor = audio_monitor_create(
+			device_id, obs_source_get_name(audio_monitor->source),
+			port);
 		audio_monitor_start(audio_monitor->monitor);
 	}
 	float def = (float)obs_data_get_double(settings, "volume") / 100.0f;
@@ -115,6 +120,22 @@ static bool add_monitoring_device(void *data, const char *name, const char *id)
 	return true;
 }
 
+bool audio_monitor_device_changed(obs_properties_t *props,
+				  obs_property_t *property,
+				  obs_data_t *settings)
+{
+	auto *ip = obs_properties_get(props, "ip");
+	auto *port = obs_properties_get(props, "port");
+	if (strcmp("VBAN", obs_data_get_string(settings, "device")) == 0) {
+		obs_property_set_visible(ip, true);
+		obs_property_set_visible(port, true);
+	} else {
+		obs_property_set_visible(ip, false);
+		obs_property_set_visible(port, false);
+	}
+	return true;
+}
+
 static obs_properties_t *audio_monitor_properties(void *data)
 {
 	UNUSED_PARAMETER(data);
@@ -124,10 +145,19 @@ static obs_properties_t *audio_monitor_properties(void *data)
 						    OBS_COMBO_TYPE_LIST,
 						    OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(p, obs_module_text("Default"), "default");
+#ifdef WIN32
+	obs_property_list_add_string(p, obs_module_text("VBAN"), "VBAN");
+#endif
 	obs_enum_audio_monitoring_devices(add_monitoring_device, p);
+	obs_property_set_modified_callback(p, audio_monitor_device_changed);
 	obs_properties_add_float_slider(
 		ppts, "volume", obs_module_text("Volume"), 0.0, 100.0, 1.0);
 	obs_properties_add_bool(ppts, "locked", obs_module_text("Locked"));
+
+	obs_properties_add_text(ppts, "ip", obs_module_text("Ip"),
+				OBS_TEXT_DEFAULT);
+	obs_properties_add_int(ppts, "port", obs_module_text("Port"), 1, 32767,
+			       1);
 	return ppts;
 }
 
@@ -135,6 +165,7 @@ void audio_monitor_defaults(obs_data_t *settings)
 {
 	obs_data_set_default_double(settings, "volume", 100.0);
 	obs_data_set_default_string(settings, "device", "default");
+	obs_data_set_default_int(settings, "port", 6980);
 }
 
 struct obs_source_info audio_monitor_filter_info = {

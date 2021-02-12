@@ -528,7 +528,7 @@ void AudioMonitorDock::OutputDeviceChanged()
 		return;
 	AudioOutputControl *control =
 		static_cast<AudioOutputControl *>(item->widget());
-		
+
 	QString device_id = a->property("device_id").toString();
 	if (checked) {
 		control->AddDevice(device_id, a->text());

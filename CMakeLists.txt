@@ -1,4 +1,4 @@
-project(audio-monitor VERSION 0.3.4)
+project(audio-monitor VERSION 0.4.0)
 set(PROJECT_FULL_NAME "Audio Monitor")
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/version.h.in ${CMAKE_CURRENT_SOURCE_DIR}/version.h)
@@ -37,7 +37,8 @@ if(WIN32)
 		audio-monitor-win.h)
 	if(MSVC)
 		set(audio-monitor_PLATFORM_DEPS
-		w32-pthreads)
+		w32-pthreads
+		WS2_32)
 	endif()
 elseif(APPLE)
 	find_library(COREFOUNDATION CoreFoundation)

@@ -249,7 +249,7 @@ void audio_monitor_set_volume(struct audio_monitor *audio_monitor, float volume)
     audio_monitor->volume = volume;
 }
 
-struct audio_monitor *audio_monitor_create(const char *device_id){
+struct audio_monitor *audio_monitor_create(const char *device_id, const char* source_name, int port){
 	struct audio_monitor *audio_monitor = bzalloc(sizeof(struct audio_monitor));
 	audio_monitor->device_id = bstrdup(device_id);
 	pthread_mutex_init(&audio_monitor->mutex, NULL);
