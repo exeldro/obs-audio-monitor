@@ -4,10 +4,13 @@
 #include "obs-module.h"
 #include "obs.h"
 #include "version.h"
+#include "util/circlebuf.h"
 
 struct audio_monitor_context {
 	obs_source_t *source;
 	struct audio_monitor *monitor;
+	long long delay;
+	struct circlebuf audio_buffer;
 };
 
 static const char *audio_monitor_get_name(void *unused)
@@ -38,6 +41,7 @@ static void audio_monitor_update(void *data, obs_data_t *settings)
 {
 	struct audio_monitor_context *audio_monitor = data;
 
+	audio_monitor->delay = obs_data_get_int(settings, "delay");
 	int port = 0;
 	char *device_id = obs_data_get_string(settings, "device");
 	if (strcmp(device_id, "VBAN") == 0) {
@@ -102,6 +106,14 @@ static void audio_monitor_filter_destroy(void *data)
 {
 	struct audio_monitor_context *audio_monitor = data;
 	audio_monitor_destroy(audio_monitor->monitor);
+	while (audio_monitor->audio_buffer.size) {
+		struct obs_audio_data cached;
+		circlebuf_pop_front(&audio_monitor->audio_buffer, &cached,
+				     sizeof(cached));
+		for (size_t i = 0; i < MAX_AV_PLANES; i++)
+			bfree(cached.data[i]);
+	}
+	circlebuf_free(&audio_monitor->audio_buffer);
 	bfree(audio_monitor);
 }
 
@@ -109,8 +121,51 @@ struct obs_audio_data *audio_monitor_filter_audio(void *data,
 						  struct obs_audio_data *audio)
 {
 	struct audio_monitor_context *audio_monitor = data;
-	if (audio_monitor->monitor)
-		audio_monitor_audio(audio_monitor->monitor, audio);
+	if (audio_monitor->delay) {
+		struct obs_audio_data cached = *audio;
+		for (size_t i = 0; i < MAX_AV_PLANES; i++) {
+			if (!audio->data[i])
+				break;
+
+			cached.data[i] = bmemdup(audio->data[i],
+						 audio->frames * sizeof(float));
+		}
+		circlebuf_push_back(&audio_monitor->audio_buffer, &cached,
+				    sizeof(cached));
+		circlebuf_peek_front(&audio_monitor->audio_buffer, &cached,
+				     sizeof(cached));
+		uint64_t diff = cached.timestamp > audio->timestamp
+			           ? cached.timestamp - audio->timestamp
+			           : audio->timestamp - cached.timestamp;
+		while (audio_monitor->audio_buffer.size > sizeof(cached) &&
+		       diff >= audio_monitor->delay * 1000000) {
+
+			circlebuf_pop_front(&audio_monitor->audio_buffer, NULL,
+					    sizeof(cached));
+
+			audio_monitor_audio(audio_monitor->monitor, &cached);
+			
+			for (size_t i = 0; i < MAX_AV_PLANES; i++)
+				bfree(cached.data[i]);
+			
+			circlebuf_peek_front(&audio_monitor->audio_buffer,
+					     &cached,
+					     sizeof(cached));
+			diff = cached.timestamp > audio->timestamp
+				       ? cached.timestamp - audio->timestamp
+				       : audio->timestamp - cached.timestamp;
+		}
+	} else {
+		if (audio_monitor->monitor)
+			audio_monitor_audio(audio_monitor->monitor, audio);
+		while (audio_monitor->audio_buffer.size) {
+			struct obs_audio_data cached;
+			circlebuf_pop_front(&audio_monitor->audio_buffer,
+					    &cached, sizeof(cached));
+			for (size_t i = 0; i < MAX_AV_PLANES; i++)
+				bfree(cached.data[i]);
+		}
+	}
 	return audio;
 }
 
@@ -150,10 +205,15 @@ static obs_properties_t *audio_monitor_properties(void *data)
 #endif
 	obs_enum_audio_monitoring_devices(add_monitoring_device, p);
 	obs_property_set_modified_callback(p, audio_monitor_device_changed);
-	obs_properties_add_float_slider(
+	p = obs_properties_add_float_slider(
 		ppts, "volume", obs_module_text("Volume"), 0.0, 100.0, 1.0);
+
+	obs_property_float_set_suffix(p, "%");
 	obs_properties_add_bool(ppts, "locked", obs_module_text("Locked"));
 
+	p = obs_properties_add_int(ppts, "delay", obs_module_text("Delay"), 0,
+				   10000, 100);
+	obs_property_int_set_suffix(p, "ms");
 	obs_properties_add_text(ppts, "ip", obs_module_text("Ip"),
 				OBS_TEXT_DEFAULT);
 	obs_properties_add_int(ppts, "port", obs_module_text("Port"), 1, 32767,
