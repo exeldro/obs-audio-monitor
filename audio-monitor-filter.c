@@ -51,15 +51,21 @@ static void audio_monitor_update(void *data, obs_data_t *settings)
 	if (!audio_monitor->monitor ||
 	    strcmp(audio_monitor_get_device_id(audio_monitor->monitor),
 		   device_id) != 0) {
-		struct updateFilterNameData d;
-		d.device_id = device_id;
-		d.device_name = NULL;
-		obs_enum_audio_monitoring_devices(updateFilterName, &d);
-		if (d.device_name) {
-			obs_data_set_string(settings, "deviceName",
-					    d.device_name);
+		if (!port) {
+			struct updateFilterNameData d;
+			d.device_id = device_id;
+			d.device_name = NULL;
+			obs_enum_audio_monitoring_devices(updateFilterName, &d);
+			if (d.device_name) {
+				obs_data_set_string(settings, "deviceName",
+						    d.device_name);
+			}
+		}else {
+			obs_data_set_string(settings, "deviceName",device_id);
 		}
-		audio_monitor_destroy(audio_monitor->monitor);
+		struct audio_monitor * old = audio_monitor->monitor;
+		audio_monitor->monitor = NULL;
+		audio_monitor_destroy(old);
 		audio_monitor->monitor = audio_monitor_create(
 			device_id, obs_source_get_name(audio_monitor->source),
 			port);

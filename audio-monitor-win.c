@@ -387,6 +387,8 @@ void audio_monitor_destroy(struct audio_monitor *audio_monitor)
 	if (!audio_monitor)
 		return;
 	audio_monitor_stop(audio_monitor);
+	if (audio_monitor->sock)
+		closesocket(audio_monitor->sock);
 	bfree(audio_monitor->source_name);
 	bfree(audio_monitor->device_id);
 	bfree(audio_monitor);
