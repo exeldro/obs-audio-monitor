@@ -60,16 +60,30 @@ static void audio_monitor_update(void *data, obs_data_t *settings)
 				obs_data_set_string(settings, "deviceName",
 						    d.device_name);
 			}
-		}else {
-			obs_data_set_string(settings, "deviceName",device_id);
+		} else {
+			obs_data_set_string(settings, "deviceName", device_id);
 		}
-		struct audio_monitor * old = audio_monitor->monitor;
+		struct audio_monitor *old = audio_monitor->monitor;
 		audio_monitor->monitor = NULL;
 		audio_monitor_destroy(old);
 		audio_monitor->monitor = audio_monitor_create(
 			device_id, obs_source_get_name(audio_monitor->source),
 			port);
+		if (port) {
+			audio_monitor_set_format(audio_monitor->monitor,
+						 obs_data_get_int(settings,
+								  "format"));
+			audio_monitor_set_samples_per_sec(
+				audio_monitor->monitor,
+				obs_data_get_int(settings, "samples_per_sec"));
+		}
 		audio_monitor_start(audio_monitor->monitor);
+	} else if (port) {
+		audio_monitor_set_format(audio_monitor->monitor,
+					 obs_data_get_int(settings, "format"));
+		audio_monitor_set_samples_per_sec(
+			audio_monitor->monitor,
+			obs_data_get_int(settings, "samples_per_sec"));
 	}
 	float def = (float)obs_data_get_double(settings, "volume") / 100.0f;
 	float db;
@@ -115,7 +129,7 @@ static void audio_monitor_filter_destroy(void *data)
 	while (audio_monitor->audio_buffer.size) {
 		struct obs_audio_data cached;
 		circlebuf_pop_front(&audio_monitor->audio_buffer, &cached,
-				     sizeof(cached));
+				    sizeof(cached));
 		for (size_t i = 0; i < MAX_AV_PLANES; i++)
 			bfree(cached.data[i]);
 	}
@@ -141,8 +155,8 @@ struct obs_audio_data *audio_monitor_filter_audio(void *data,
 		circlebuf_peek_front(&audio_monitor->audio_buffer, &cached,
 				     sizeof(cached));
 		uint64_t diff = cached.timestamp > audio->timestamp
-			           ? cached.timestamp - audio->timestamp
-			           : audio->timestamp - cached.timestamp;
+					? cached.timestamp - audio->timestamp
+					: audio->timestamp - cached.timestamp;
 		while (audio_monitor->audio_buffer.size > sizeof(cached) &&
 		       diff >= audio_monitor->delay * 1000000) {
 
@@ -150,13 +164,12 @@ struct obs_audio_data *audio_monitor_filter_audio(void *data,
 					    sizeof(cached));
 
 			audio_monitor_audio(audio_monitor->monitor, &cached);
-			
+
 			for (size_t i = 0; i < MAX_AV_PLANES; i++)
 				bfree(cached.data[i]);
-			
+
 			circlebuf_peek_front(&audio_monitor->audio_buffer,
-					     &cached,
-					     sizeof(cached));
+					     &cached, sizeof(cached));
 			diff = cached.timestamp > audio->timestamp
 				       ? cached.timestamp - audio->timestamp
 				       : audio->timestamp - cached.timestamp;
@@ -187,12 +200,18 @@ bool audio_monitor_device_changed(obs_properties_t *props,
 {
 	auto *ip = obs_properties_get(props, "ip");
 	auto *port = obs_properties_get(props, "port");
+	auto *format = obs_properties_get(props, "format");
+	auto *samples_per_sec = obs_properties_get(props, "samples_per_sec");
 	if (strcmp("VBAN", obs_data_get_string(settings, "device")) == 0) {
 		obs_property_set_visible(ip, true);
 		obs_property_set_visible(port, true);
+		obs_property_set_visible(format, true);
+		obs_property_set_visible(samples_per_sec, true);
 	} else {
 		obs_property_set_visible(ip, false);
 		obs_property_set_visible(port, false);
+		obs_property_set_visible(format, false);
+		obs_property_set_visible(samples_per_sec, false);
 	}
 	return true;
 }
@@ -224,6 +243,41 @@ static obs_properties_t *audio_monitor_properties(void *data)
 				OBS_TEXT_DEFAULT);
 	obs_properties_add_int(ppts, "port", obs_module_text("Port"), 1, 32767,
 			       1);
+	p = obs_properties_add_list(ppts, "format", obs_module_text("Format"),
+				    OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+	obs_property_list_add_int(p, obs_module_text("UInt8"),
+				  AUDIO_FORMAT_U8BIT);
+	obs_property_list_add_int(p, obs_module_text("Int16"),
+				  AUDIO_FORMAT_16BIT);
+	obs_property_list_add_int(p, obs_module_text("Int32"),
+				  AUDIO_FORMAT_32BIT);
+	obs_property_list_add_int(p, obs_module_text("Float32"),
+				  AUDIO_FORMAT_FLOAT);
+
+	p = obs_properties_add_list(ppts, "samples_per_sec",
+				    obs_module_text("SampleRate"),
+				    OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+	obs_property_list_add_int(p, obs_module_text("6kHz"), 6000);
+	obs_property_list_add_int(p, obs_module_text("8kHz"), 8000);
+	obs_property_list_add_int(p, obs_module_text("11025Hz"), 11025);
+	obs_property_list_add_int(p, obs_module_text("12kHz"), 12000);
+	obs_property_list_add_int(p, obs_module_text("16kHz"), 16000);
+	obs_property_list_add_int(p, obs_module_text("22050Hz"), 22050);
+	obs_property_list_add_int(p, obs_module_text("24kHz"), 24000);
+	obs_property_list_add_int(p, obs_module_text("32kHz"), 32000);
+	obs_property_list_add_int(p, obs_module_text("44.1kHz"), 44100);
+	obs_property_list_add_int(p, obs_module_text("48kHz"), 48000);
+	obs_property_list_add_int(p, obs_module_text("64kHz"), 64000);
+	obs_property_list_add_int(p, obs_module_text("88.2kHz"), 88200);
+	obs_property_list_add_int(p, obs_module_text("96kHz"), 96000);
+	obs_property_list_add_int(p, obs_module_text("128kHz"), 128000);
+	obs_property_list_add_int(p, obs_module_text("176.4kHz"), 176400);
+	obs_property_list_add_int(p, obs_module_text("192kHz"), 192000);
+	obs_property_list_add_int(p, obs_module_text("256kHz"), 256000);
+	obs_property_list_add_int(p, obs_module_text("352.8kHz"), 352800);
+	obs_property_list_add_int(p, obs_module_text("384kHz"), 384000);
+	obs_property_list_add_int(p, obs_module_text("512kHz"), 512000);
+	obs_property_list_add_int(p, obs_module_text("705.6kHz"), 705600);
 	return ppts;
 }
 
@@ -232,6 +286,10 @@ void audio_monitor_defaults(obs_data_t *settings)
 	obs_data_set_default_double(settings, "volume", 100.0);
 	obs_data_set_default_string(settings, "device", "default");
 	obs_data_set_default_int(settings, "port", 6980);
+	obs_data_set_default_int(settings, "format", AUDIO_FORMAT_FLOAT);
+	obs_data_set_default_int(
+		settings, "samples_per_sec",
+		audio_output_get_info(obs_get_audio())->samples_per_sec);
 }
 
 struct obs_source_info audio_monitor_filter_info = {

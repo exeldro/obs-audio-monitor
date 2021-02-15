@@ -41,6 +41,8 @@ struct audio_monitor {
 	struct sockaddr_storage addrDest;
 	uint32_t nuFrame;
 	byte sr;
+	enum audio_format format;
+	long long samples_per_sec;
 };
 
 static enum speaker_layout convert_speaker_layout(DWORD layout, WORD channels)
@@ -178,53 +180,56 @@ void audio_monitor_start(struct audio_monitor *audio_monitor)
 		safe_release(immde);
 	} else {
 		audio_monitor->channels = info->speakers;
-		if (info->samples_per_sec == 6000) {
+		if (!audio_monitor->samples_per_sec) {
+			audio_monitor->samples_per_sec = info->samples_per_sec;
+		}
+		if (audio_monitor->samples_per_sec == 6000) {
 			audio_monitor->sr = 0;
-		} else if (info->samples_per_sec == 12000) {
+		} else if (audio_monitor->samples_per_sec == 12000) {
 			audio_monitor->sr = 1;
-		} else if (info->samples_per_sec == 24000) {
+		} else if (audio_monitor->samples_per_sec == 24000) {
 			audio_monitor->sr = 2;
-		} else if (info->samples_per_sec == 48000) {
+		} else if (audio_monitor->samples_per_sec == 48000) {
 			audio_monitor->sr = 3;
-		} else if (info->samples_per_sec == 96000) {
+		} else if (audio_monitor->samples_per_sec == 96000) {
 			audio_monitor->sr = 4;
-		} else if (info->samples_per_sec == 192000) {
+		} else if (audio_monitor->samples_per_sec == 192000) {
 			audio_monitor->sr = 5;
-		} else if (info->samples_per_sec == 384000) {
+		} else if (audio_monitor->samples_per_sec == 384000) {
 			audio_monitor->sr = 6;
-		} else if (info->samples_per_sec == 8000) {
+		} else if (audio_monitor->samples_per_sec == 8000) {
 			audio_monitor->sr = 7;
-		} else if (info->samples_per_sec == 16000) {
+		} else if (audio_monitor->samples_per_sec == 16000) {
 			audio_monitor->sr = 8;
-		} else if (info->samples_per_sec == 32000) {
+		} else if (audio_monitor->samples_per_sec == 32000) {
 			audio_monitor->sr = 9;
-		} else if (info->samples_per_sec == 64000) {
+		} else if (audio_monitor->samples_per_sec == 64000) {
 			audio_monitor->sr = 10;
-		} else if (info->samples_per_sec == 128000) {
+		} else if (audio_monitor->samples_per_sec == 128000) {
 			audio_monitor->sr = 11;
-		} else if (info->samples_per_sec == 256000) {
+		} else if (audio_monitor->samples_per_sec == 256000) {
 			audio_monitor->sr = 12;
-		} else if (info->samples_per_sec == 512000) {
+		} else if (audio_monitor->samples_per_sec == 512000) {
 			audio_monitor->sr = 13;
-		} else if (info->samples_per_sec == 11025) {
+		} else if (audio_monitor->samples_per_sec == 11025) {
 			audio_monitor->sr = 14;
-		} else if (info->samples_per_sec == 22050) {
+		} else if (audio_monitor->samples_per_sec == 22050) {
 			audio_monitor->sr = 15;
-		} else if (info->samples_per_sec == 44100) {
+		} else if (audio_monitor->samples_per_sec == 44100) {
 			audio_monitor->sr = 16;
-		} else if (info->samples_per_sec == 88200) {
+		} else if (audio_monitor->samples_per_sec == 88200) {
 			audio_monitor->sr = 17;
-		} else if (info->samples_per_sec == 176400) {
+		} else if (audio_monitor->samples_per_sec == 176400) {
 			audio_monitor->sr = 18;
-		} else if (info->samples_per_sec == 352800) {
+		} else if (audio_monitor->samples_per_sec == 352800) {
 			audio_monitor->sr = 19;
-		} else if (info->samples_per_sec == 705600) {
+		} else if (audio_monitor->samples_per_sec == 705600) {
 			audio_monitor->sr = 20;
 		}
 
-		to.samples_per_sec = info->samples_per_sec;
+		to.samples_per_sec = audio_monitor->samples_per_sec;
 		to.speakers = info->speakers;
-		to.format = AUDIO_FORMAT_FLOAT;
+		to.format = audio_monitor->format;
 	}
 
 	audio_monitor->resampler = audio_resampler_create(&to, &from);
@@ -255,26 +260,65 @@ void audio_monitor_audio(void *data, struct obs_audio_data *audio)
 	}
 	/* apply volume */
 	if (!close_float(audio_monitor->volume, 1.0f, EPSILON)) {
-		register float *cur = (float *)resample_data[0];
-		register float *end =
-			cur + resample_frames * audio_monitor->channels;
+		if (audio_monitor->format == AUDIO_FORMAT_FLOAT) {
+			register float *cur = (float *)resample_data[0];
+			register float *end =
+				cur + resample_frames * audio_monitor->channels;
 
-		while (cur < end)
-			*(cur++) *= audio_monitor->volume;
+			while (cur < end)
+				*(cur++) *= audio_monitor->volume;
+		} else if (audio_monitor->format == AUDIO_FORMAT_32BIT) {
+			register int32_t *cur = (int32_t *)resample_data[0];
+			register int32_t *end =
+				cur + resample_frames * audio_monitor->channels;
+
+			while (cur < end) {
+				*cur = (int32_t)((float)*cur *
+						 audio_monitor->volume);
+				cur++;
+			}
+		} else if (audio_monitor->format == AUDIO_FORMAT_16BIT) {
+			register int16_t *cur = (int16_t *)resample_data[0];
+			register int16_t *end =
+				cur + resample_frames * audio_monitor->channels;
+
+			while (cur < end) {
+				*cur = (int16_t)((float)*cur *
+						 audio_monitor->volume);
+				cur++;
+			}
+		} else if (audio_monitor->format == AUDIO_FORMAT_U8BIT) {
+			register uint8_t *cur = resample_data[0];
+			register uint8_t *end =
+				cur + resample_frames * audio_monitor->channels;
+
+			while (cur < end) {
+				*cur = (uint8_t)((float)*cur *
+						 audio_monitor->volume);
+				cur++;
+			}
+		}
 	}
 
 	if (audio_monitor->sock) {
 
-		size_t sample_size = audio_monitor->channels * 4;
+		size_t sample_size = audio_monitor->channels;
+		if (audio_monitor->format == AUDIO_FORMAT_16BIT) {
+			sample_size *= 2;
+		} else if (audio_monitor->format == AUDIO_FORMAT_U8BIT) {
+
+		} else {
+			sample_size *= 4;
+		}
 		size_t frames_per_packet = 1436 / sample_size;
 		for (size_t pos = 0; pos < resample_frames;
 		     pos += frames_per_packet) {
 			size_t msg_length =
-				28 + audio_monitor->channels * 4 *
-					     (pos + frames_per_packet <=
-							      resample_frames
-						      ? frames_per_packet
-						      : resample_frames - pos);
+				28 +
+				sample_size * (pos + frames_per_packet <=
+							       resample_frames
+						       ? frames_per_packet
+						       : resample_frames - pos);
 			byte *msg = bzalloc(msg_length);
 			msg[0] = 'V';
 			msg[1] = 'B';
@@ -288,7 +332,17 @@ void audio_monitor_audio(void *data, struct obs_audio_data *audio)
 				msg[5] = resample_frames - pos - 1;
 			}
 			msg[6] = audio_monitor->channels - 1;
-			msg[7] = 4;
+			if (audio_monitor->format == AUDIO_FORMAT_U8BIT) {
+				msg[7] = 0;
+			} else if (audio_monitor->format ==
+				   AUDIO_FORMAT_16BIT) {
+				msg[7] = 1;
+			} else if (audio_monitor->format ==
+				   AUDIO_FORMAT_32BIT) {
+				msg[7] = 3;
+			} else {
+				msg[7] = 4;
+			}
 
 			const size_t len = strlen(audio_monitor->source_name);
 			memcpy(msg + 8, audio_monitor->source_name,
@@ -298,9 +352,7 @@ void audio_monitor_audio(void *data, struct obs_audio_data *audio)
 			       sizeof(uint32_t));
 			audio_monitor->nuFrame++;
 
-			memcpy(msg + 28,
-			       resample_data[0] +
-				       pos * 4 * audio_monitor->channels,
+			memcpy(msg + 28, resample_data[0] + pos * sample_size,
 			       msg_length - 28);
 			int result = sendto(
 				audio_monitor->sock, msg, msg_length, 0,
@@ -371,6 +423,7 @@ struct audio_monitor *audio_monitor_create(const char *device_id,
 	audio_monitor->device_id = bstrdup(device_id);
 	audio_monitor->source_name = bstrdup(source_name);
 	audio_monitor->volume = 1.0f;
+	audio_monitor->format = AUDIO_FORMAT_FLOAT;
 	pthread_mutex_init(&audio_monitor->mutex, NULL);
 	if (port) {
 		char buffer[10];
@@ -399,4 +452,30 @@ const char *audio_monitor_get_device_id(struct audio_monitor *audio_monitor)
 	if (!audio_monitor)
 		return;
 	return audio_monitor->device_id;
+}
+
+void audio_monitor_set_format(struct audio_monitor *audio_monitor,
+			      enum audio_format format)
+{
+	if (!format || audio_monitor->format == format ||
+	    format > AUDIO_FORMAT_FLOAT)
+		return;
+	audio_monitor->format = format;
+	if (audio_monitor->resampler) {
+		audio_monitor_stop(audio_monitor);
+		audio_monitor_start(audio_monitor);
+	}
+}
+
+void audio_monitor_set_samples_per_sec(struct audio_monitor *audio_monitor,
+				       long long samples_per_sec)
+{
+	if (samples_per_sec <= 0 ||
+	    audio_monitor->samples_per_sec == samples_per_sec)
+		return;
+	audio_monitor->samples_per_sec = samples_per_sec;
+	if (audio_monitor->resampler) {
+		audio_monitor_stop(audio_monitor);
+		audio_monitor_start(audio_monitor);
+	}
 }

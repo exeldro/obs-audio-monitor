@@ -270,3 +270,11 @@ const char *audio_monitor_get_device_id(struct audio_monitor *audio_monitor){
 		return NULL;
     return audio_monitor->device_id;
 }
+
+void audio_monitor_set_format(struct audio_monitor *audio_monitor,
+			      enum audio_format format){
+}
+
+void audio_monitor_set_samples_per_sec(struct audio_monitor *audio_monitor,
+				       long long samples_per_sec){
+}
