@@ -11,6 +11,8 @@ struct audio_monitor_context {
 	struct audio_monitor *monitor;
 	long long delay;
 	struct circlebuf audio_buffer;
+	bool linked;
+	bool updating_volume;
 };
 
 static const char *audio_monitor_get_name(void *unused)
@@ -36,12 +38,102 @@ bool updateFilterName(void *data, const char *name, const char *id)
 
 #define LOG_OFFSET_DB 6.0f
 #define LOG_RANGE_DB 96.0f
+/* equals -log10f(LOG_OFFSET_DB) */
+#define LOG_OFFSET_VAL -0.77815125038364363f
+/* equals -log10f(-LOG_RANGE_DB + LOG_OFFSET_DB) */
+#define LOG_RANGE_VAL -2.00860017176191756f
+
+void audio_monitor_volume_changed(void *data, calldata_t *call_data)
+{
+	struct audio_monitor_context *audio_monitor = data;
+	if (audio_monitor->updating_volume)
+		return;
+	double mul = calldata_float(call_data, "volume");
+	float db = obs_mul_to_db(mul);
+	float def;
+	if (db >= 0.0f)
+		def = 1.0f;
+	else if (db <= -96.0f)
+		def = 0.0f;
+	else
+		def = (-log10f(-db + LOG_OFFSET_DB) - LOG_RANGE_VAL) /
+		      (LOG_OFFSET_VAL - LOG_RANGE_VAL);
+	obs_data_t *settings = obs_source_get_settings(audio_monitor->source);
+	if (settings) {
+		float def2 =
+			(float)obs_data_get_double(settings, "volume") / 100.0f;
+		float db2;
+		if (def2 >= 1.0f)
+			db2 = 0.0f;
+		else if (def2 <= 0.0f)
+			db2 = -INFINITY;
+		else
+			db2 = -(LOG_RANGE_DB + LOG_OFFSET_DB) *
+				      powf((LOG_RANGE_DB + LOG_OFFSET_DB) /
+						   LOG_OFFSET_DB,
+					   -def2) +
+			      LOG_OFFSET_DB;
+		if (!close_float(db, db2, 0.01f)) {
+			obs_data_set_double(settings, "volume", def * 100.f);
+			audio_monitor->updating_volume = true;
+			obs_source_update(audio_monitor->source, NULL);
+			audio_monitor->updating_volume = false;
+		}
+		obs_data_release(settings);
+	}
+}
 
 static void audio_monitor_update(void *data, obs_data_t *settings)
 {
 	struct audio_monitor_context *audio_monitor = data;
 
 	audio_monitor->delay = obs_data_get_int(settings, "delay");
+	float def = (float)obs_data_get_double(settings, "volume") / 100.0f;
+	float db;
+	if (def >= 1.0f)
+		db = 0.0f;
+	else if (def <= 0.0f)
+		db = -INFINITY;
+	else
+		db = -(LOG_RANGE_DB + LOG_OFFSET_DB) *
+			     powf((LOG_RANGE_DB + LOG_OFFSET_DB) /
+					  LOG_OFFSET_DB,
+				  -def) +
+		     LOG_OFFSET_DB;
+	const float mul = obs_db_to_mul(db);
+	obs_source_t *parent = obs_filter_get_parent(audio_monitor->source);
+
+	if (obs_data_get_bool(settings, "linked")) {
+		if (parent) {
+			const float vol = obs_source_get_volume(parent);
+			float db2 = obs_mul_to_db(vol);
+			if (!audio_monitor->updating_volume && !close_float(
+				    db, db2, 0.01f)) {
+				audio_monitor->updating_volume = true;
+				obs_source_set_volume(parent, mul);
+				audio_monitor->updating_volume = false;
+			}
+			if (!audio_monitor->linked) {
+				signal_handler_t *sh =
+					obs_source_get_signal_handler(parent);
+				if (sh) {
+					signal_handler_connect(
+						sh, "volume",
+						audio_monitor_volume_changed,
+						audio_monitor);
+					audio_monitor->linked = true;
+				}
+			}
+		}
+	} else if (audio_monitor->linked && parent) {
+		signal_handler_t *sh = obs_source_get_signal_handler(parent);
+		if (sh) {
+			signal_handler_disconnect(sh, "volume",
+						  audio_monitor_volume_changed,
+						  audio_monitor);
+			audio_monitor->linked = false;
+		}
+	}
 	int port = 0;
 	char *device_id = obs_data_get_string(settings, "device");
 	if (strcmp(device_id, "VBAN") == 0) {
@@ -85,19 +177,6 @@ static void audio_monitor_update(void *data, obs_data_t *settings)
 			audio_monitor->monitor,
 			obs_data_get_int(settings, "samples_per_sec"));
 	}
-	float def = (float)obs_data_get_double(settings, "volume") / 100.0f;
-	float db;
-	if (def >= 1.0f)
-		db = 0.0f;
-	else if (def <= 0.0f)
-		db = -INFINITY;
-	else
-		db = -(LOG_RANGE_DB + LOG_OFFSET_DB) *
-			     powf((LOG_RANGE_DB + LOG_OFFSET_DB) /
-					  LOG_OFFSET_DB,
-				  -def) +
-		     LOG_OFFSET_DB;
-	const float mul = isfinite((double)db) ? powf(10.0f, db / 20.0f) : 0.0f;
 
 	audio_monitor_set_volume(audio_monitor->monitor, mul);
 
@@ -125,6 +204,13 @@ static void *audio_monitor_filter_create(obs_data_t *settings,
 static void audio_monitor_filter_destroy(void *data)
 {
 	struct audio_monitor_context *audio_monitor = data;
+	obs_source_t *parent = obs_filter_get_parent(audio_monitor->source);
+	if (parent) {
+		signal_handler_disconnect(obs_source_get_signal_handler(parent),
+					  "volume",
+					  audio_monitor_volume_changed,
+					  audio_monitor);
+	}
 	audio_monitor_destroy(audio_monitor->monitor);
 	while (audio_monitor->audio_buffer.size) {
 		struct obs_audio_data cached;
@@ -235,6 +321,7 @@ static obs_properties_t *audio_monitor_properties(void *data)
 
 	obs_property_float_set_suffix(p, "%");
 	obs_properties_add_bool(ppts, "locked", obs_module_text("Locked"));
+	obs_properties_add_bool(ppts, "linked", obs_module_text("Linked"));
 
 	p = obs_properties_add_int(ppts, "delay", obs_module_text("Delay"), 0,
 				   10000, 100);
