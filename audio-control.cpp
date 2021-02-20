@@ -176,7 +176,7 @@ void AudioControl::ShowSliderNames(bool show)
 				continue;
 			QString name = item->widget()->objectName();
 			if (column == 1) {
-				name = QT_UTF8(obs_module_text("Output"));
+				name = QT_UTF8(obs_module_text("OutputShort"));
 			}
 			item = mainLayout->itemAtPosition(nameRow, column);
 			if (!item) {
@@ -282,7 +282,7 @@ void AudioControl::ShowOutputSlider(bool output)
 			font.setPointSize(font.pointSize() - 1);
 			nameLabel->setWordWrap(true);
 
-			nameLabel->setText(QT_UTF8(obs_module_text("Output")));
+			nameLabel->setText(QT_UTF8(obs_module_text("OutputShort")));
 			nameLabel->setFont(font);
 			nameLabel->setAlignment(Qt::AlignCenter);
 
