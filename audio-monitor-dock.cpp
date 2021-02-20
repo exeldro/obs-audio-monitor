@@ -11,6 +11,7 @@
 #include "obs-frontend-api.h"
 #include "obs-module.h"
 #include "obs.h"
+#include "util/config-file.h"
 #include "util/platform.h"
 
 #define QT_UTF8(str) QString::fromUtf8(str)
@@ -86,6 +87,9 @@ AudioMonitorDock::AudioMonitorDock(QWidget *parent) : QDockWidget(parent)
 
 	signal_handler_connect_global(obs_get_signal_handler(), OBSSignal,
 				      this);
+
+	obs_frontend_add_event_callback(OBSFrontendEvent, this);
+
 	auto *dockWidgetContents = new QWidget;
 	dockWidgetContents->setContextMenuPolicy(Qt::CustomContextMenu);
 	connect(dockWidgetContents, &QWidget::customContextMenuRequested, this,
@@ -125,6 +129,7 @@ AudioMonitorDock::~AudioMonitorDock()
 {
 	signal_handler_disconnect_global(obs_get_signal_handler(), OBSSignal,
 					 this);
+	obs_frontend_remove_event_callback(OBSFrontendEvent, this);
 	char *file = obs_module_config_path("config.json");
 	if (file) {
 		obs_data_t *data = obs_data_create_from_json_file(file);
@@ -225,6 +230,26 @@ void AudioMonitorDock::OBSSignal(void *data, const char *signal,
 		QString sourceName = QT_UTF8(obs_source_get_name(source));
 		QMetaObject::invokeMethod(dock, "RemoveAudioControl",
 					  Q_ARG(QString, QString(sourceName)));
+	}
+}
+
+void AudioMonitorDock::OBSFrontendEvent(enum obs_frontend_event event,
+					void *data)
+{
+	if (event != OBS_FRONTEND_EVENT_PROFILE_CHANGED)
+		return;
+	auto *dock = static_cast<AudioMonitorDock *>(data);
+	QMetaObject::invokeMethod(dock, "UpdateTrackNames");
+}
+
+void AudioMonitorDock::UpdateTrackNames()
+{
+	for (int column = 1; column <= MAX_AUDIO_MIXES; column++) {
+		QLayoutItem *item = mainLayout->itemAtPosition(0, column);
+		if (!item)
+			continue;
+		auto *l = static_cast<QLabel *>(item->widget());
+		l->setText(GetTrackName(column));
 	}
 }
 
@@ -476,10 +501,7 @@ void AudioMonitorDock::ConfigClicked()
 
 	auto *outputs = popup.addMenu(QT_UTF8(obs_module_text("Outputs")));
 	for (int i = 0; i < MAX_AUDIO_MIXES; i++) {
-		QString trackName = QT_UTF8(obs_module_text("Track"));
-		trackName += " ";
-		trackName += QString::number(i + 1);
-		auto *trackMenu = outputs->addMenu(trackName);
+		auto *trackMenu = outputs->addMenu(GetTrackName(i));
 		trackMenu->setProperty("track", i);
 		connect(trackMenu, SIGNAL(aboutToShow()), this,
 			SLOT(LoadTrackMenu()));
@@ -755,20 +777,31 @@ void AudioMonitorDock::OnlyActiveChanged()
 	}
 }
 
+QString AudioMonitorDock::GetTrackName(int i)
+{
+	QString trackName =
+		QT_UTF8("Track") + QString::number(i + 1) + QT_UTF8("Name");
+	trackName = QT_UTF8(config_get_string(obs_frontend_get_profile_config(),
+					      "AdvOut", QT_TO_UTF8(trackName)));
+	if (trackName.isEmpty()) {
+		trackName = QT_UTF8(obs_module_text("Track"));
+		trackName += " ";
+		trackName += QString::number(i + 1);
+	}
+	return trackName;
+}
+
 void AudioMonitorDock::addOutputTrack(int i, obs_data_t *obs_data)
 {
 	auto *control = new AudioOutputControl(i, obs_data);
 	control->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
 	mainLayout->addWidget(control, 1, i + 1);
-	QString trackName = QT_UTF8(obs_module_text("Track"));
-	trackName += " ";
-	trackName += QString::number(i + 1);
 	auto *nameLabel = new QLabel();
 	QFont font = nameLabel->font();
 	font.setPointSize(font.pointSize() - 1);
 	nameLabel->setWordWrap(true);
 
-	nameLabel->setText(trackName);
+	nameLabel->setText(GetTrackName(i));
 	nameLabel->setFont(font);
 	nameLabel->setAlignment(Qt::AlignCenter);
 

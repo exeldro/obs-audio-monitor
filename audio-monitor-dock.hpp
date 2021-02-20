@@ -6,6 +6,7 @@
 #include "obs.h"
 #include "audio-control.hpp"
 #include "audio-monitor-filter.h"
+#include <obs-frontend-api.h>
 
 class AudioMonitorDock : public QDockWidget {
 	Q_OBJECT
@@ -19,8 +20,10 @@ private:
 	void moveAudioControl(int fromColumn, int toColumn);
 	void addFilter(int column, obs_source_t *filter);
 	void addOutputTrack(int i, obs_data_t *obs_data = nullptr);
+	QString GetTrackName(int i);
 	static void OBSSignal(void *data, const char *signal,
 			      calldata_t *calldata);
+	static void OBSFrontendEvent(enum obs_frontend_event event, void *data);
 
 	static void OBSFilterAdd(void *data, calldata_t *calldata);
 	static void OBSFilterRemove(void *data, calldata_t *calldata);
@@ -39,6 +42,7 @@ private slots:
 	void MeterOutputChanged();
 	void OutputSliderChanged();
 	void OnlyActiveChanged();
+
 	void SliderNamesChanged();
 	void AddAudioSource(OBSSource source);
 	void RemoveAudioControl(const QString &sourceName);
@@ -48,6 +52,7 @@ private slots:
 	void LoadTrackMenu();
 	void ShowOutputChanged();
 	void OutputDeviceChanged();
+	void UpdateTrackNames();
 
 public:
 	AudioMonitorDock(QWidget *parent = nullptr);
