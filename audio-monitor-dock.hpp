@@ -15,7 +15,7 @@ private:
 	QMap<QString, QString> audioDevices;
 
 	void addAudioControl(obs_source_t *source, int column,
-	                     obs_source_t *filter);
+			     obs_source_t *filter);
 	void moveAudioControl(int fromColumn, int toColumn);
 	void addFilter(int column, obs_source_t *filter);
 	void addOutputTrack(int i, obs_data_t *obs_data = nullptr);
@@ -33,6 +33,7 @@ private:
 	bool showOutputSlider;
 	bool showOnlyActive;
 	void ConfigClicked();
+	void RemoveSourcesWithoutSliders();
 private slots:
 	void MeterOutputChanged();
 	void OutputSliderChanged();

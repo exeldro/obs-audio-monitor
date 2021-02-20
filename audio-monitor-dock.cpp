@@ -186,7 +186,12 @@ void AudioMonitorDock::OBSSignal(void *data, const char *signal,
 						  Q_ARG(OBSSource,
 							OBSSource(source)));
 		}
-
+	} else if (strcmp(signal, "source_load") == 0) {
+		if (!dock->showOnlyActive || obs_source_active(source)) {
+			QMetaObject::invokeMethod(dock, "AddAudioSource",
+						  Q_ARG(OBSSource,
+							OBSSource(source)));
+		}
 	} else if (strcmp(signal, "source_remove") == 0 ||
 		   strcmp(signal, "source_destroy") == 0) {
 		signal_handler_disconnect(obs_source_get_signal_handler(source),
@@ -279,8 +284,12 @@ void AudioMonitorDock::addAudioControl(obs_source_t *source, int column,
 		new AudioControl(obs_source_get_weak_source(source));
 	audioControl->setSizePolicy(QSizePolicy::Preferred,
 				    QSizePolicy::Expanding);
+
 	audioControl->ShowOutputMeter(showOutputMeter);
-	audioControl->ShowOutputSlider(showOutputSlider);
+	obs_data_t *priv_settings = obs_source_get_private_settings(source);
+	bool hidden = obs_data_get_bool(priv_settings, "mixer_hidden");
+	obs_data_release(priv_settings);
+	audioControl->ShowOutputSlider(showOutputSlider && !hidden);
 	mainLayout->addWidget(audioControl, 1, column);
 	if (filter)
 		addFilter(column, filter);
@@ -624,8 +633,15 @@ bool AudioMonitorDock::OBSAddAudioSource(void *data, obs_source_t *source)
 				AudioControl *audioControl =
 					static_cast<AudioControl *>(
 						item->widget());
+				obs_data_t *priv_settings =
+					obs_source_get_private_settings(source);
+				bool hidden = obs_data_get_bool(priv_settings,
+								"mixer_hidden");
+				obs_data_release(priv_settings);
 				audioControl->ShowOutputSlider(
-					dock->showOutputSlider);
+					dock->showOutputSlider && !hidden);
+				if (!dock->showOutputSlider || hidden)
+					dock->RemoveSourcesWithoutSliders();
 				return true;
 			}
 		}
@@ -655,24 +671,27 @@ bool AudioMonitorDock::OBSAddAudioSource(void *data, obs_source_t *source)
 		}
 	}
 	obs_source_enum_filters(source, OBSFilterAdd, data);
-	// remove sources without slider
-	columns = dock->mainLayout->columnCount();
+	dock->RemoveSourcesWithoutSliders();
+	return true;
+}
+
+void AudioMonitorDock::RemoveSourcesWithoutSliders()
+{
+	const int columns = mainLayout->columnCount();
 	int removed = 0;
 	for (int column = MAX_AUDIO_MIXES + 1; column < columns; column++) {
-		QLayoutItem *item = dock->mainLayout->itemAtPosition(1, column);
+		QLayoutItem *item = mainLayout->itemAtPosition(1, column);
 		if (item) {
 			AudioControl *audioControl =
 				static_cast<AudioControl *>(item->widget());
 			if (!audioControl->HasSliders()) {
-				dock->moveAudioControl(column, -1);
+				moveAudioControl(column, -1);
 				removed++;
 			} else if (removed > 0) {
-				dock->moveAudioControl(column,
-						       column - removed);
+				moveAudioControl(column, column - removed);
 			}
 		}
 	}
-	return true;
 }
 
 void AudioMonitorDock::OnlyActiveChanged()
