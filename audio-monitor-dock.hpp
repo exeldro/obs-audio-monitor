@@ -32,12 +32,14 @@ private:
 	bool showOutputMeter;
 	bool showOutputSlider;
 	bool showOnlyActive;
+	bool showSliderNames;
 	void ConfigClicked();
 	void RemoveSourcesWithoutSliders();
 private slots:
 	void MeterOutputChanged();
 	void OutputSliderChanged();
 	void OnlyActiveChanged();
+	void SliderNamesChanged();
 	void AddAudioSource(OBSSource source);
 	void RemoveAudioControl(const QString &sourceName);
 	void RenameAudioControl(QString new_name, QString prev_name);

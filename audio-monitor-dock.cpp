@@ -44,6 +44,7 @@ AudioMonitorDock::AudioMonitorDock(QWidget *parent) : QDockWidget(parent)
 		showOutputMeter = obs_data_get_bool(data, "showOutputMeter");
 		showOutputSlider = obs_data_get_bool(data, "showOutputSlider");
 		showOnlyActive = obs_data_get_bool(data, "showOnlyActive");
+		showSliderNames = obs_data_get_bool(data, "showSliderNames");
 		auto *outputs = obs_data_get_array(data, "outputs");
 		if (outputs) {
 			auto output_count = obs_data_array_count(outputs);
@@ -71,6 +72,7 @@ AudioMonitorDock::AudioMonitorDock(QWidget *parent) : QDockWidget(parent)
 		showOutputMeter = false;
 		showOutputSlider = false;
 		showOnlyActive = false;
+		showSliderNames = false;
 		auto *control = new AudioOutputControl(0);
 		control->setSizePolicy(QSizePolicy::Preferred,
 				       QSizePolicy::Expanding);
@@ -131,6 +133,7 @@ AudioMonitorDock::~AudioMonitorDock()
 		obs_data_set_bool(data, "showOutputMeter", showOutputMeter);
 		obs_data_set_bool(data, "showOutputSlider", showOutputSlider);
 		obs_data_set_bool(data, "showOnlyActive", showOnlyActive);
+		obs_data_set_bool(data, "showSliderNames", showSliderNames);
 		auto *outputs = obs_data_array_create();
 		for (int i = 0; i < MAX_AUDIO_MIXES; i++) {
 			auto *item = mainLayout->itemAtPosition(1, i + 1);
@@ -290,6 +293,7 @@ void AudioMonitorDock::addAudioControl(obs_source_t *source, int column,
 	bool hidden = obs_data_get_bool(priv_settings, "mixer_hidden");
 	obs_data_release(priv_settings);
 	audioControl->ShowOutputSlider(showOutputSlider && !hidden);
+	audioControl->ShowSliderNames(showSliderNames);
 	mainLayout->addWidget(audioControl, 1, column);
 	if (filter)
 		addFilter(column, filter);
@@ -465,6 +469,10 @@ void AudioMonitorDock::ConfigClicked()
 	a->setCheckable(true);
 	a->setChecked(showOnlyActive);
 	connect(a, SIGNAL(triggered()), this, SLOT(OnlyActiveChanged()));
+	a = popup.addAction(QT_UTF8(obs_module_text("SliderNames")));
+	a->setCheckable(true);
+	a->setChecked(showSliderNames);
+	connect(a, SIGNAL(triggered()), this, SLOT(SliderNamesChanged()));
 
 	auto *outputs = popup.addMenu(QT_UTF8(obs_module_text("Outputs")));
 	for (int i = 0; i < MAX_AUDIO_MIXES; i++) {
@@ -588,6 +596,21 @@ void AudioMonitorDock::OutputSliderChanged()
 							 column - removed);
 				}
 			}
+		}
+	}
+}
+
+void AudioMonitorDock::SliderNamesChanged()
+{
+	QAction *a = static_cast<QAction *>(sender());
+	showSliderNames = a->isChecked();
+	const int columns = mainLayout->columnCount();
+	for (int column = MAX_AUDIO_MIXES + 1; column < columns; column++) {
+		QLayoutItem *item = mainLayout->itemAtPosition(1, column);
+		if (item) {
+			AudioControl *audioControl =
+				static_cast<AudioControl *>(item->widget());
+			audioControl->ShowSliderNames(showSliderNames);
 		}
 	}
 }

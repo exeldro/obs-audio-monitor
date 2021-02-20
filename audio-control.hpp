@@ -17,11 +17,13 @@ private:
 	const int lockRow = 0;
 	const int sliderRow = 1;
 	const int muteRow = 2;
+	const int nameRow = 3;
 
 	OBSWeakSource source;
 	VolumeMeter *volMeter;
 	obs_volmeter_t *obs_volmeter;
 	QGridLayout *mainLayout;
+	bool showSliderNames;
 
 	static void OBSVolumeLevel(void *data,
 				   const float magnitude[MAX_AUDIO_CHANNELS],
@@ -44,7 +46,7 @@ private slots:
 	void RenameFilter(QString prev_name, QString new_name);
 	void FilterUpdated(QString name, double volume, bool locked);
 	void FilterEnable(QString name, bool enabled);
-signals :
+signals:
 
 public:
 	explicit AudioControl(OBSWeakSource source);
@@ -57,6 +59,7 @@ public:
 	bool HasSliders();
 	void ShowOutputMeter(bool output);
 	void ShowOutputSlider(bool output);
+	void ShowSliderNames(bool show);
 
 	//void SetMeterDecayRate(qreal q);
 	//void setPeakMeterType(enum obs_peak_meter_type peakMeterType);

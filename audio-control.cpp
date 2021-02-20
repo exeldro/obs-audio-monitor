@@ -131,11 +131,11 @@ void AudioControl::MuteVolumeControl(bool mute)
 	QCheckBox *checkbox = reinterpret_cast<QCheckBox *>(sender());
 	int columns = mainLayout->columnCount();
 	for (int column = 1; column < columns; column++) {
-		QLayoutItem *item = mainLayout->itemAtPosition(2, column);
+		QLayoutItem *item = mainLayout->itemAtPosition(muteRow, column);
 		if (!item)
 			continue;
 		if (item->widget() == checkbox) {
-			item = mainLayout->itemAtPosition(1, column);
+			item = mainLayout->itemAtPosition(sliderRow, column);
 			obs_source_t *s = obs_weak_source_get_source(source);
 			if (!s)
 				return;
@@ -161,6 +161,50 @@ void AudioControl::MuteVolumeControl(bool mute)
 void AudioControl::ShowOutputMeter(bool output)
 {
 	volMeter->ShowOutputMeter(output);
+}
+
+void AudioControl::ShowSliderNames(bool show)
+{
+	showSliderNames = show;
+	int columns = mainLayout->columnCount();
+	if (show) {
+		for (int column = 1; column < columns; column++) {
+
+			QLayoutItem *item =
+				mainLayout->itemAtPosition(sliderRow, column);
+			if (!item)
+				continue;
+			QString name = item->widget()->objectName();
+			if (column == 1) {
+				name = QT_UTF8(obs_module_text("Output"));
+			}
+			item = mainLayout->itemAtPosition(nameRow, column);
+			if (!item) {
+				auto *nameLabel = new QLabel();
+				QFont font = nameLabel->font();
+				font.setPointSize(font.pointSize() - 1);
+				nameLabel->setWordWrap(true);
+
+				nameLabel->setText(name);
+				nameLabel->setFont(font);
+				nameLabel->setAlignment(Qt::AlignCenter);
+
+				mainLayout->addWidget(nameLabel, nameRow,
+						      column);
+			}
+		}
+	} else {
+		for (int column = 1; column < columns; column++) {
+
+			QLayoutItem *item =
+				mainLayout->itemAtPosition(nameRow, column);
+			if (!item)
+				continue;
+			auto *w = item->widget();
+			mainLayout->removeItem(item);
+			delete w;
+		}
+	}
 }
 
 #define LOG_OFFSET_DB 6.0f
@@ -227,12 +271,24 @@ void AudioControl::ShowOutputSlider(bool output)
 				       OBSMute, this);
 		signal_handler_connect(obs_source_get_signal_handler(s),
 				       "volume", OBSVolume, this);
-
 		obs_source_release(s);
 
 		mainLayout->addWidget(locked, 0, 1, Qt::AlignHCenter);
 		mainLayout->addWidget(slider, 1, 1, Qt::AlignHCenter);
 		mainLayout->addWidget(mute, 2, 1, Qt::AlignHCenter);
+		if (showSliderNames) {
+			auto *nameLabel = new QLabel();
+			QFont font = nameLabel->font();
+			font.setPointSize(font.pointSize() - 1);
+			nameLabel->setWordWrap(true);
+
+			nameLabel->setText(QT_UTF8(obs_module_text("Output")));
+			nameLabel->setFont(font);
+			nameLabel->setAlignment(Qt::AlignCenter);
+
+			mainLayout->addWidget(nameLabel, nameRow, 1,
+					      Qt::AlignHCenter);
+		}
 	} else {
 		int rows = mainLayout->rowCount();
 		for (int row = 0; row < rows; row++) {
@@ -387,15 +443,23 @@ void AudioControl::RenameFilter(QString prev_name, QString new_name)
 {
 	int columns = mainLayout->columnCount();
 	for (int column = 2; column < columns; column++) {
-		QLayoutItem *item = mainLayout->itemAtPosition(1, column);
+		QLayoutItem *item =
+			mainLayout->itemAtPosition(sliderRow, column);
 		if (!item)
 			continue;
-		auto *l = static_cast<QLabel *>(item->widget());
-		if (l->objectName() == prev_name) {
-			l->setObjectName(new_name);
+		auto *w = item->widget();
+		if (w->objectName() == prev_name) {
+			w->setObjectName(new_name);
 			QString toolTip = QT_UTF8(obs_module_text("Volume"));
 			toolTip += " ";
-			l->setToolTip(toolTip + new_name);
+			w->setToolTip(toolTip + new_name);
+
+			item = mainLayout->itemAtPosition(nameRow, column);
+			if (item) {
+				auto *l =
+					dynamic_cast<QLabel *>(item->widget());
+				l->setText(new_name);
+			}
 		}
 	}
 }
@@ -537,9 +601,22 @@ void AudioControl::addFilterColumn(int column, obs_source_t *filter)
 
 	obs_data_release(settings);
 
-	mainLayout->addWidget(locked, 0, column, Qt::AlignHCenter);
-	mainLayout->addWidget(slider, 1, column, Qt::AlignHCenter);
-	mainLayout->addWidget(mute, 2, column, Qt::AlignHCenter);
+	mainLayout->addWidget(locked, lockRow, column, Qt::AlignHCenter);
+	mainLayout->addWidget(slider, sliderRow, column, Qt::AlignHCenter);
+	mainLayout->addWidget(mute, muteRow, column, Qt::AlignHCenter);
+	if (showSliderNames) {
+		auto *nameLabel = new QLabel();
+		QFont font = nameLabel->font();
+		font.setPointSize(font.pointSize() - 1);
+		nameLabel->setWordWrap(true);
+
+		nameLabel->setText(filterName);
+		nameLabel->setFont(font);
+		nameLabel->setAlignment(Qt::AlignCenter);
+
+		mainLayout->addWidget(nameLabel, nameRow, column,
+				      Qt::AlignHCenter);
+	}
 }
 
 void AudioControl::SliderChanged(int vol)
