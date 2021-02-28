@@ -259,14 +259,15 @@ void audio_monitor_audio(void *data, struct obs_audio_data *audio)
 		return;
 	}
 	/* apply volume */
-	if (!close_float(audio_monitor->volume, 1.0f, EPSILON)) {
+	float vol = audio_monitor->volume;
+	if (!close_float(vol, 1.0f, EPSILON)) {
 		if (audio_monitor->format == AUDIO_FORMAT_FLOAT) {
 			register float *cur = (float *)resample_data[0];
 			register float *end =
 				cur + resample_frames * audio_monitor->channels;
 
 			while (cur < end)
-				*(cur++) *= audio_monitor->volume;
+				*(cur++) *= vol;
 		} else if (audio_monitor->format == AUDIO_FORMAT_32BIT) {
 			register int32_t *cur = (int32_t *)resample_data[0];
 			register int32_t *end =
@@ -274,7 +275,7 @@ void audio_monitor_audio(void *data, struct obs_audio_data *audio)
 
 			while (cur < end) {
 				*cur = (int32_t)((float)*cur *
-						 audio_monitor->volume);
+						 vol);
 				cur++;
 			}
 		} else if (audio_monitor->format == AUDIO_FORMAT_16BIT) {
@@ -284,7 +285,7 @@ void audio_monitor_audio(void *data, struct obs_audio_data *audio)
 
 			while (cur < end) {
 				*cur = (int16_t)((float)*cur *
-						 audio_monitor->volume);
+						vol);
 				cur++;
 			}
 		} else if (audio_monitor->format == AUDIO_FORMAT_U8BIT) {
@@ -294,7 +295,7 @@ void audio_monitor_audio(void *data, struct obs_audio_data *audio)
 
 			while (cur < end) {
 				*cur = (uint8_t)((float)*cur *
-						 audio_monitor->volume);
+						 vol);
 				cur++;
 			}
 		}

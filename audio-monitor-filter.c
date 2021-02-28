@@ -6,6 +6,10 @@
 #include "version.h"
 #include "util/circlebuf.h"
 
+#define MUTE_NEVER 0
+#define MUTE_NOT_ACTIVE 1
+#define MUTE_SOURCE_MUTE 2
+
 struct audio_monitor_context {
 	obs_source_t *source;
 	struct audio_monitor *monitor;
@@ -13,6 +17,7 @@ struct audio_monitor_context {
 	struct circlebuf audio_buffer;
 	bool linked;
 	bool updating_volume;
+	int mute;
 };
 
 static const char *audio_monitor_get_name(void *unused)
@@ -83,6 +88,39 @@ void audio_monitor_volume_changed(void *data, calldata_t *call_data)
 	}
 }
 
+void audio_monitor_mute_changed(void *data, calldata_t *call_data)
+{
+	struct audio_monitor_context *audio_monitor = data;
+	const bool muted = calldata_bool(call_data, "muted");
+	if (muted == obs_source_enabled(audio_monitor->source)) {
+		obs_source_set_enabled(audio_monitor->source, !muted);
+	}
+}
+
+void audio_monitor_enabled_changed(void *data, calldata_t *call_data)
+{
+	struct audio_monitor_context *audio_monitor = data;
+	const bool enabled = calldata_bool(call_data, "enabled");
+	obs_source_t *parent = obs_filter_get_parent(audio_monitor->source);
+	if (parent && obs_source_muted(parent) == enabled) {
+		obs_source_set_muted(parent, !enabled);
+	}
+}
+
+void audio_monitor_activated(void *data, calldata_t *call_data)
+{
+	struct audio_monitor_context *audio_monitor = data;
+	if (!obs_source_enabled(audio_monitor->source))
+		obs_source_set_enabled(audio_monitor->source, true);
+}
+
+void audio_monitor_deactivated(void *data, calldata_t *call_data)
+{
+	struct audio_monitor_context *audio_monitor = data;
+	if (obs_source_enabled(audio_monitor->source))
+		obs_source_set_enabled(audio_monitor->source, false);
+}
+
 static void audio_monitor_update(void *data, obs_data_t *settings)
 {
 	struct audio_monitor_context *audio_monitor = data;
@@ -102,13 +140,12 @@ static void audio_monitor_update(void *data, obs_data_t *settings)
 		     LOG_OFFSET_DB;
 	const float mul = obs_db_to_mul(db);
 	obs_source_t *parent = obs_filter_get_parent(audio_monitor->source);
-
-	if (obs_data_get_bool(settings, "linked")) {
-		if (parent) {
+	if (parent) {
+		if (obs_data_get_bool(settings, "linked")) {
 			const float vol = obs_source_get_volume(parent);
 			float db2 = obs_mul_to_db(vol);
-			if (!audio_monitor->updating_volume && !close_float(
-				    db, db2, 0.01f)) {
+			if (!audio_monitor->updating_volume &&
+			    !close_float(db, db2, 0.01f)) {
 				audio_monitor->updating_volume = true;
 				obs_source_set_volume(parent, mul);
 				audio_monitor->updating_volume = false;
@@ -124,16 +161,93 @@ static void audio_monitor_update(void *data, obs_data_t *settings)
 					audio_monitor->linked = true;
 				}
 			}
+
+		} else if (audio_monitor->linked) {
+			signal_handler_t *sh =
+				obs_source_get_signal_handler(parent);
+			if (sh) {
+				signal_handler_disconnect(
+					sh, "volume",
+					audio_monitor_volume_changed,
+					audio_monitor);
+				audio_monitor->linked = false;
+			}
 		}
-	} else if (audio_monitor->linked && parent) {
-		signal_handler_t *sh = obs_source_get_signal_handler(parent);
-		if (sh) {
-			signal_handler_disconnect(sh, "volume",
-						  audio_monitor_volume_changed,
-						  audio_monitor);
-			audio_monitor->linked = false;
+		const int mute = obs_data_get_int(settings, "mute");
+		if (audio_monitor->mute == MUTE_SOURCE_MUTE &&
+		    mute != audio_monitor->mute) {
+			signal_handler_t *sh =
+				obs_source_get_signal_handler(parent);
+			if (sh) {
+				signal_handler_disconnect(
+					sh, "mute", audio_monitor_mute_changed,
+					audio_monitor);
+				audio_monitor->mute = MUTE_NEVER;
+			}
+		}
+		if (audio_monitor->mute == MUTE_NOT_ACTIVE &&
+		    mute != audio_monitor->mute) {
+			signal_handler_t *sh =
+				obs_source_get_signal_handler(parent);
+			if (sh) {
+				signal_handler_disconnect(
+					sh, "activate", audio_monitor_activated,
+					audio_monitor);
+				signal_handler_disconnect(
+					sh, "deactivated",
+					audio_monitor_deactivated,
+					audio_monitor);
+				audio_monitor->mute = MUTE_NEVER;
+			}
+		}
+		if (mute == MUTE_SOURCE_MUTE) {
+			const bool muted = obs_source_muted(parent);
+			if (muted ==
+			    obs_source_enabled(audio_monitor->source)) {
+				obs_source_set_muted(parent, !muted);
+			}
+			if (audio_monitor->mute != MUTE_SOURCE_MUTE) {
+				signal_handler_t *sh =
+					obs_source_get_signal_handler(parent);
+				if (sh) {
+					signal_handler_connect(
+						sh, "mute",
+						audio_monitor_mute_changed,
+						audio_monitor);
+					audio_monitor->mute = MUTE_SOURCE_MUTE;
+				}
+				signal_handler_connect(
+					obs_source_get_signal_handler(
+						audio_monitor->source),
+					"enable", audio_monitor_enabled_changed,
+					audio_monitor);
+			}
+		}
+		if (mute == MUTE_NOT_ACTIVE) {
+			const bool active = obs_source_active(parent);
+			if (active !=
+			    obs_source_enabled(audio_monitor->source)) {
+				obs_source_set_enabled(audio_monitor->source,
+						       active);
+			}
+			if (audio_monitor->mute != MUTE_NOT_ACTIVE) {
+				signal_handler_t *sh =
+					obs_source_get_signal_handler(parent);
+				if (sh) {
+					signal_handler_connect(
+						sh, "activate",
+						audio_monitor_activated,
+						audio_monitor);
+					signal_handler_connect(
+						sh, "deactivate",
+						audio_monitor_deactivated,
+						audio_monitor);
+					audio_monitor->mute = MUTE_NOT_ACTIVE;
+				}
+			}
 		}
 	}
+
 	int port = 0;
 	char *device_id = obs_data_get_string(settings, "device");
 	if (strcmp(device_id, "VBAN") == 0) {
@@ -206,9 +320,16 @@ static void audio_monitor_filter_destroy(void *data)
 	struct audio_monitor_context *audio_monitor = data;
 	obs_source_t *parent = obs_filter_get_parent(audio_monitor->source);
 	if (parent) {
-		signal_handler_disconnect(obs_source_get_signal_handler(parent),
-					  "volume",
+		signal_handler_t *sh = obs_source_get_signal_handler(parent);
+		signal_handler_disconnect(sh, "volume",
 					  audio_monitor_volume_changed,
+					  audio_monitor);
+		signal_handler_disconnect(
+			sh, "mute", audio_monitor_mute_changed, audio_monitor);
+		signal_handler_disconnect(
+			sh, "activate", audio_monitor_activated, audio_monitor);
+		signal_handler_disconnect(sh, "deactivated",
+					  audio_monitor_deactivated,
 					  audio_monitor);
 	}
 	audio_monitor_destroy(audio_monitor->monitor);
@@ -322,6 +443,13 @@ static obs_properties_t *audio_monitor_properties(void *data)
 	obs_property_float_set_suffix(p, "%");
 	obs_properties_add_bool(ppts, "locked", obs_module_text("Locked"));
 	obs_properties_add_bool(ppts, "linked", obs_module_text("Linked"));
+	p = obs_properties_add_list(ppts, "mute", obs_module_text("Mute"),
+				    OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+	obs_property_list_add_int(p, obs_module_text("Never"), MUTE_NEVER);
+	obs_property_list_add_int(p, obs_module_text("NotActiveOutput"),
+				  MUTE_NOT_ACTIVE);
+	obs_property_list_add_int(p, obs_module_text("SourceMuted"),
+				  MUTE_SOURCE_MUTE);
 
 	p = obs_properties_add_int(ppts, "delay", obs_module_text("Delay"), 0,
 				   10000, 100);
