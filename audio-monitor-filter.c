@@ -425,7 +425,7 @@ bool audio_monitor_device_changed(obs_properties_t *props,
 
 static obs_properties_t *audio_monitor_properties(void *data)
 {
-	UNUSED_PARAMETER(data);
+	struct audio_monitor_context *audio_monitor = data;
 	obs_properties_t *ppts = obs_properties_create();
 	obs_property_t *p = obs_properties_add_list(ppts, "device",
 						    obs_module_text("Device"),
@@ -436,6 +436,36 @@ static obs_properties_t *audio_monitor_properties(void *data)
 	obs_property_list_add_string(p, obs_module_text("VBAN"), "VBAN");
 #endif
 	obs_enum_audio_monitoring_devices(add_monitoring_device, p);
+	obs_data_t *settings = obs_source_get_settings(audio_monitor->source);
+	if (settings) {
+		const char *device_id = obs_data_get_string(settings, "device");
+		if (device_id && strlen(device_id)) {
+			const size_t count = obs_property_list_item_count(p);
+			bool found = false;
+			for (size_t i = 0; i < count; i++) {
+				if (strcmp(device_id,
+					   obs_property_list_item_string(
+						   p, i)) == 0) {
+					found = true;
+					break;
+				}
+			}
+			if (!found) {
+				const char *device_name = obs_data_get_string(
+					settings, "deviceName");
+				if (device_name && strlen(device_name)) {
+					obs_property_list_add_string(
+						p, device_name, device_id);
+				} else {
+					obs_property_list_add_string(
+						p, device_id, device_id);
+				}
+			}
+		}
+
+		obs_data_release(settings);
+	}
+
 	obs_property_set_modified_callback(p, audio_monitor_device_changed);
 	p = obs_properties_add_float_slider(
 		ppts, "volume", obs_module_text("Volume"), 0.0, 100.0, 1.0);

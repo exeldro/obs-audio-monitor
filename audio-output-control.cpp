@@ -59,7 +59,7 @@ AudioOutputControl::AudioOutputControl(int track, obs_data_t *settings)
 	mainLayout->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
 	mainLayout->setContentsMargins(0, 0, 0, 0);
 	mainLayout->setSpacing(2);
-	mainLayout->addWidget(volMeter, 0, 0, -1, 1);
+	mainLayout->addWidget(volMeter, 0, 0, -1, 1, Qt::AlignHCenter);
 
 	if (settings) {
 		obs_data_array_t *devices =
@@ -437,47 +437,50 @@ void AudioOutputControl::addDeviceColumn(int column, QString device_id,
 	mute->setChecked(muted);
 	mute->setEnabled(!lock);
 
-	mainLayout->addWidget(locked, 0, column, Qt::AlignHCenter);
-	mainLayout->addWidget(slider, 1, column, Qt::AlignHCenter);
-	mainLayout->addWidget(mute, 2, column, Qt::AlignHCenter);
+	mainLayout->addWidget(locked, lockRow, column, Qt::AlignHCenter);
+	mainLayout->addWidget(slider, sliderRow, column, Qt::AlignHCenter);
+	mainLayout->addWidget(mute, muteRow, column, Qt::AlignHCenter);
 }
 
 void AudioOutputControl::RemoveDevice(QString device_id)
 {
-	auto it = audioDevices.find(device_id);
+	const auto it = audioDevices.find(device_id);
 	if (it != audioDevices.end()) {
-		audio_monitor *monitor = it.value();
+		auto *monitor = it.value();
 		audio_monitor_destroy(monitor);
 		audioDevices.remove(device_id);
 	}
-	int columns = mainLayout->columnCount();
-	bool found = true;
-	for (int column = 1; column < columns; column++) {
-		QLayoutItem *item = mainLayout->itemAtPosition(1, column);
-		if (!item)
+	const auto columns = mainLayout->columnCount();
+	auto found = false;
+	for (auto column = 1; column < columns; column++) {
+		auto item_slider =
+			mainLayout->itemAtPosition(sliderRow, column);
+		if (!item_slider)
 			continue;
-		QWidget *w = item->widget();
-		if (device_id.localeAwareCompare(w->objectName()) == 0) {
+		auto *widget = item_slider->widget();
+		if (device_id.localeAwareCompare(widget->objectName()) == 0) {
 			found = true;
-			int rows = mainLayout->rowCount();
-			for (int row = 0; row < rows; row++) {
+			const auto rows = mainLayout->rowCount();
+			for (auto row = 0; row < rows; row++) {
 				auto *item =
 					mainLayout->itemAtPosition(row, column);
 				if (item) {
 					auto *w = item->widget();
 					mainLayout->removeItem(item);
 					delete w;
+					delete item;
 				}
 			}
 		} else if (found) {
-			int rows = mainLayout->rowCount();
-			for (int row = 0; row < rows; row++) {
+			const auto rows = mainLayout->rowCount();
+			for (auto row = 0; row < rows; row++) {
 				auto *item =
 					mainLayout->itemAtPosition(row, column);
 				if (item) {
 					mainLayout->removeItem(item);
 					mainLayout->addItem(item, row,
-							    column - 1);
+							    column - 1, 1, 1,
+							    Qt::AlignHCenter);
 				}
 			}
 		}
