@@ -16,7 +16,7 @@ jobs:
     runs-on: [macos-latest]
     env:
       QT_VERSION: '5.15.2'
-      MACOS_DEPS_VERSION: '2020-12-22'
+      MACOS_DEPS_VERSION: '2021-02-28'
     steps:
       - name: Checkout
         uses: actions/checkout@v2.3.3
@@ -36,15 +36,21 @@ jobs:
         shell: bash
         run: |
           if [ -d /usr/local/opt/openssl@1.0.2t ]; then
-              brew uninstall openssl@1.0.2t
-              brew untap local/openssl
+            brew uninstall openssl@1.0.2t
+            brew untap local/openssl
           fi
 
           if [ -d /usr/local/opt/python@2.7.17 ]; then
-              brew uninstall python@2.7.17
-              brew untap local/python2
+            brew uninstall python@2.7.17
+            brew untap local/python2
           fi
+
+          if [ -d /usr/local/opt/speexdsp ]; then
+            brew unlink speexdsp
+          fi
+          brew uninstall curl php
           brew bundle --file ./CI/scripts/macos/Brewfile
+          echo "NPROC=$(sysctl -n hw.ncpu)" >> $GITHUB_ENV
       - name: 'Install prerequisite: Pre-built dependencies'
         if: steps.deps-cache.outputs.cache-hit != 'true'
         shell: bash
@@ -85,8 +91,9 @@ jobs:
         if: success()
         shell: bash
         run: |
-          curl -L -O https://s3-us-west-2.amazonaws.com/obs-nightly/Packages.pkg
-          sudo installer -pkg ./Packages.pkg -target /
+          curl -L -O http://s.sudre.free.fr/Software/files/Packages.dmg
+          sudo hdiutil attach ./Packages.dmg
+          sudo installer -pkg /Volumes/Packages\ 1.2.9/Install\ Packages.pkg -target /
       - name: Package
         if: success()
         shell: bash

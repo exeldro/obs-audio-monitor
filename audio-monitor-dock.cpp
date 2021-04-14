@@ -207,9 +207,12 @@ void AudioMonitorDock::OBSSignal(void *data, const char *signal,
 		signal_handler_disconnect(obs_source_get_signal_handler(source),
 					  "filter_remove", OBSFilterRemove,
 					  data);
-		const QString sourceName = obs_source_get_name(source);
-		QMetaObject::invokeMethod(dock, "RemoveAudioControl",
-					  Q_ARG(QString, QString(sourceName)));
+		const char *source_name = obs_source_get_name(source);
+		if (source_name && strlen(source_name)) {
+			QMetaObject::invokeMethod(dock, "RemoveAudioControl",
+						  Q_ARG(QString,
+							QT_UTF8(source_name)));
+		}
 	} else if (strcmp(signal, "source_volume") == 0) {
 	} else if (strcmp(signal, "source_rename") == 0) {
 		QString new_name =

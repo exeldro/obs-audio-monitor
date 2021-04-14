@@ -118,6 +118,8 @@ void AudioOutputControl::OBSOutputAudio(void *param, size_t mix_idx,
 
 	const struct audio_output_info *info =
 		audio_output_get_info(obs_get_audio());
+	if (!info)
+		return;
 	int nr_channels = info->speakers;
 
 	int nr_samples = data->frames;
@@ -453,7 +455,7 @@ void AudioOutputControl::RemoveDevice(QString device_id)
 	const auto columns = mainLayout->columnCount();
 	auto found = false;
 	for (auto column = 1; column < columns; column++) {
-		auto item_slider =
+		auto *item_slider =
 			mainLayout->itemAtPosition(sliderRow, column);
 		if (!item_slider)
 			continue;
