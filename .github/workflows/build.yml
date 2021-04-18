@@ -153,6 +153,8 @@ jobs:
            libjack-jackd2-dev \
            libjansson-dev \
            libluajit-5.1-dev \
+           libpipewire-0.2-1 \
+           libpipewire-0.2-dev \
            libpulse-dev \
            libqt5x11extras5-dev \
            libsndio-dev \
@@ -173,6 +175,7 @@ jobs:
            libxcomposite-dev \
            libxinerama-dev \
            libmbedtls-dev \
+           pipewire \
            pkg-config \
            python3-dev \
            qtbase5-dev \
