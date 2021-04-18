@@ -25,6 +25,7 @@ static const char *audio_monitor_get_name(void *unused)
 	UNUSED_PARAMETER(unused);
 	return obs_module_text("AudioMonitor");
 }
+
 struct updateFilterNameData {
 
 	const char *device_id;
