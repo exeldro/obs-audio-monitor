@@ -190,15 +190,15 @@ void AudioMonitorDock::OBSSignal(void *data, const char *signal,
 		signal_handler_connect(obs_source_get_signal_handler(source),
 				       "filter_remove", OBSFilterRemove, data);
 		if (!dock->showOnlyActive || obs_source_active(source)) {
-			QMetaObject::invokeMethod(dock, "AddAudioSource",
-						  Q_ARG(OBSSource,
-							OBSSource(source)));
+			QMetaObject::invokeMethod(
+				dock, "AddAudioSource", Qt::QueuedConnection,
+				Q_ARG(OBSSource, OBSSource(source)));
 		}
 	} else if (strcmp(signal, "source_load") == 0) {
 		if (!dock->showOnlyActive || obs_source_active(source)) {
-			QMetaObject::invokeMethod(dock, "AddAudioSource",
-						  Q_ARG(OBSSource,
-							OBSSource(source)));
+			QMetaObject::invokeMethod(
+				dock, "AddAudioSource", Qt::QueuedConnection,
+				Q_ARG(OBSSource, OBSSource(source)));
 		}
 	} else if (strcmp(signal, "source_remove") == 0 ||
 		   strcmp(signal, "source_destroy") == 0) {
@@ -210,6 +210,7 @@ void AudioMonitorDock::OBSSignal(void *data, const char *signal,
 		const char *source_name = obs_source_get_name(source);
 		if (source_name && strlen(source_name)) {
 			QMetaObject::invokeMethod(dock, "RemoveAudioControl",
+						  Qt::QueuedConnection,
 						  Q_ARG(QString,
 							QT_UTF8(source_name)));
 		}
@@ -220,18 +221,21 @@ void AudioMonitorDock::OBSSignal(void *data, const char *signal,
 		QString prev_name =
 			QT_UTF8(calldata_string(call_data, "prev_name"));
 		QMetaObject::invokeMethod(dock, "RenameAudioControl",
+					  Qt::QueuedConnection,
 					  Q_ARG(QString, QString(new_name)),
 					  Q_ARG(QString, QString(prev_name)));
 	} else if (strcmp(signal, "source_activate") == 0) {
 		if (!dock->showOnlyActive)
 			return;
 		QMetaObject::invokeMethod(dock, "AddAudioSource",
+					  Qt::QueuedConnection,
 					  Q_ARG(OBSSource, OBSSource(source)));
 	} else if (strcmp(signal, "source_deactivate") == 0) {
 		if (!dock->showOnlyActive)
 			return;
 		QString sourceName = QT_UTF8(obs_source_get_name(source));
 		QMetaObject::invokeMethod(dock, "RemoveAudioControl",
+					  Qt::QueuedConnection,
 					  Q_ARG(QString, QString(sourceName)));
 	}
 }
@@ -242,7 +246,8 @@ void AudioMonitorDock::OBSFrontendEvent(enum obs_frontend_event event,
 	if (event != OBS_FRONTEND_EVENT_PROFILE_CHANGED)
 		return;
 	auto *dock = static_cast<AudioMonitorDock *>(data);
-	QMetaObject::invokeMethod(dock, "UpdateTrackNames");
+	QMetaObject::invokeMethod(dock, "UpdateTrackNames",
+				  Qt::QueuedConnection);
 }
 
 void AudioMonitorDock::UpdateTrackNames()
@@ -338,7 +343,7 @@ void AudioMonitorDock::OBSFilterAdd(void *data, calldata_t *call_data)
 	if (strcmp("audio_monitor", filter_id) != 0)
 		return;
 	AudioMonitorDock *dock = static_cast<AudioMonitorDock *>(data);
-	QMetaObject::invokeMethod(dock, "AddFilter",
+	QMetaObject::invokeMethod(dock, "AddFilter", Qt::QueuedConnection,
 				  Q_ARG(OBSSource, OBSSource(source)),
 				  Q_ARG(OBSSource, OBSSource(filter)));
 }
@@ -400,7 +405,7 @@ void AudioMonitorDock::OBSFilterRemove(void *data, calldata_t *call_data)
 	AudioMonitorDock *dock = static_cast<AudioMonitorDock *>(data);
 	QString sourceName = QT_UTF8(obs_source_get_name(source));
 	QString filterName = QT_UTF8(obs_source_get_name(filter));
-	QMetaObject::invokeMethod(dock, "RemoveFilter",
+	QMetaObject::invokeMethod(dock, "RemoveFilter", Qt::QueuedConnection,
 				  Q_ARG(QString, sourceName),
 				  Q_ARG(QString, filterName));
 }
@@ -503,8 +508,12 @@ void AudioMonitorDock::ConfigClicked()
 	connect(a, SIGNAL(triggered()), this, SLOT(SliderNamesChanged()));
 
 	auto *outputs = popup.addMenu(QT_UTF8(obs_module_text("Outputs")));
+	auto *trackMenu = outputs->addMenu(GetTrackName(-1));
+	trackMenu->setProperty("track", -1);
+	connect(trackMenu, SIGNAL(aboutToShow()), this, SLOT(LoadTrackMenu()));
+	outputs->addSeparator();
 	for (int i = 0; i < MAX_AUDIO_MIXES; i++) {
-		auto *trackMenu = outputs->addMenu(GetTrackName(i));
+		trackMenu = outputs->addMenu(GetTrackName(i));
 		trackMenu->setProperty("track", i);
 		connect(trackMenu, SIGNAL(aboutToShow()), this,
 			SLOT(LoadTrackMenu()));
@@ -526,11 +535,29 @@ void AudioMonitorDock::LoadTrackMenu()
 	a->setProperty("track", track);
 	a->setCheckable(true);
 	connect(a, SIGNAL(triggered()), this, SLOT(ShowOutputChanged()));
-	auto *item = mainLayout->itemAtPosition(1, track + 1);
-	if (!item)
-		return;
-	auto *output = static_cast<AudioOutputControl *>(item->widget());
-	a->setChecked(true);
+	AudioOutputControl *output = nullptr;
+	const auto count = mainLayout->columnCount();
+	if (track == -1) {
+		bool checked = true;
+		if (count < MAX_AUDIO_MIXES + 1) {
+			checked = false;
+		} else {
+			for (int i = 1; i <= MAX_AUDIO_MIXES; i++) {
+				auto *item = mainLayout->itemAtPosition(1, i);
+				if (!item) {
+					checked = false;
+					break;
+				}
+			}
+		}
+		a->setChecked(checked);
+	} else {
+		auto *item = mainLayout->itemAtPosition(1, track + 1);
+		if (!item)
+			return;
+		output = dynamic_cast<AudioOutputControl *>(item->widget());
+		a->setChecked(true);
+	}
 	menu->addSeparator();
 	auto d = audioDevices.begin();
 	while (d != audioDevices.end()) {
@@ -538,7 +565,31 @@ void AudioMonitorDock::LoadTrackMenu()
 		a->setCheckable(true);
 		a->setProperty("track", track);
 		a->setProperty("device_id", d.key());
-		a->setChecked(output->HasDevice(d.key()));
+		if (track == -1) {
+			bool checked = true;
+			if (count < MAX_AUDIO_MIXES + 1) {
+				checked = false;
+			} else {
+				for (int i = 1; i <= MAX_AUDIO_MIXES; i++) {
+					auto *item = mainLayout->itemAtPosition(
+						1, i);
+					if (!item) {
+						checked = false;
+						break;
+					}
+					output = dynamic_cast<
+						AudioOutputControl *>(
+						item->widget());
+					if (!output || !output->HasDevice(d.key())) {
+						checked = false;
+						break;
+					}
+				}
+			}
+			a->setChecked(checked);
+		} else {
+			a->setChecked(output->HasDevice(d.key()));
+		}
 		connect(a, SIGNAL(triggered()), this,
 			SLOT(OutputDeviceChanged()));
 		++d;
@@ -550,13 +601,30 @@ void AudioMonitorDock::ShowOutputChanged()
 	auto *a = static_cast<QAction *>(sender());
 	bool checked = a->isChecked();
 	int track = a->property("track").toInt();
-	if (checked) {
-		auto *item = mainLayout->itemAtPosition(1, track + 1);
-		if (item)
-			return;
-		addOutputTrack(track);
+	if (track == -1) {
+		const auto count = mainLayout->columnCount();
+
+		for (int i = 0; i < MAX_AUDIO_MIXES; i++) {
+			if (checked) {
+				auto *item =
+					mainLayout->itemAtPosition(1, i + 1);
+				if (item)
+					continue;
+				addOutputTrack(i);
+			} else {
+				moveAudioControl(i + 1, -1);
+			}
+		}
+
 	} else {
-		moveAudioControl(track + 1, -1);
+		if (checked) {
+			auto *item = mainLayout->itemAtPosition(1, track + 1);
+			if (item)
+				return;
+			addOutputTrack(track);
+		} else {
+			moveAudioControl(track + 1, -1);
+		}
 	}
 }
 
@@ -565,17 +633,31 @@ void AudioMonitorDock::OutputDeviceChanged()
 	auto *a = static_cast<QAction *>(sender());
 	bool checked = a->isChecked();
 	int track = a->property("track").toInt();
-	auto *item = mainLayout->itemAtPosition(1, track + 1);
-	if (!item)
-		return;
-	AudioOutputControl *control =
-		static_cast<AudioOutputControl *>(item->widget());
-
-	QString device_id = a->property("device_id").toString();
-	if (checked) {
-		control->AddDevice(device_id, a->text());
+				QString device_id = a->property("device_id").toString();
+	if (track == -1) {
+		for (int i = 1; i <= MAX_AUDIO_MIXES; i++) {
+			auto *item = mainLayout->itemAtPosition(1, i);
+			if (!item)
+				continue;
+			const auto control = dynamic_cast<AudioOutputControl *>(
+				item->widget());
+			if (checked) {
+				control->AddDevice(device_id, a->text());
+			} else {
+				control->RemoveDevice(device_id);
+			}
+		}
 	} else {
-		control->RemoveDevice(device_id);
+		auto *item = mainLayout->itemAtPosition(1, track + 1);
+		if (!item)
+			return;
+		const auto control =
+			dynamic_cast<AudioOutputControl *>(item->widget());
+		if (checked) {
+			control->AddDevice(device_id, a->text());
+		} else {
+			control->RemoveDevice(device_id);
+		}
 	}
 }
 
@@ -782,6 +864,9 @@ void AudioMonitorDock::OnlyActiveChanged()
 
 QString AudioMonitorDock::GetTrackName(int i)
 {
+	if (i == -1)
+		return QT_UTF8(obs_module_text("All"));
+
 	QString trackName =
 		QT_UTF8("Track") + QString::number(i + 1) + QT_UTF8("Name");
 	trackName = QT_UTF8(config_get_string(obs_frontend_get_profile_config(),

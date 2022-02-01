@@ -1,7 +1,12 @@
-project(audio-monitor VERSION 0.7.1)
+cmake_minimum_required(VERSION 3.18)
+project(audio-monitor VERSION 0.8.0)
 set(PROJECT_FULL_NAME "Audio Monitor")
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/version.h.in ${CMAKE_CURRENT_SOURCE_DIR}/version.h)
+
+find_package(Qt5Widgets)
+
+set(CMAKE_AUTOMOC ON)
 
 set(audio-monitor_HEADERS
 	audio-monitor-filter.h
@@ -75,6 +80,10 @@ elseif(UNIX)
 	endif()
 endif()
 
+if(BUILD_OUT_OF_TREE)
+    find_package(LibObs REQUIRED)
+endif()
+
 add_library(audio-monitor MODULE
 	${audio-monitor_HEADERS}
 	${audio-monitor_SOURCES})
@@ -84,5 +93,22 @@ target_link_libraries(audio-monitor
 		libobs
 		${audio-monitor_PLATFORM_DEPS})
 
-set_target_properties(audio-monitor PROPERTIES FOLDER "plugins/exeldro")
-install_obs_plugin_with_data(audio-monitor data)
+if(BUILD_OUT_OF_TREE)
+    if(NOT LIB_OUT_DIR)
+        set(LIB_OUT_DIR "/lib/obs-plugins")
+    endif()
+    if(NOT DATA_OUT_DIR)
+        set(DATA_OUT_DIR "/share/obs/obs-plugins/audio-monitor")
+    endif()
+    set_target_properties(audio-monitor PROPERTIES PREFIX "")
+    install(TARGETS audio-monitor
+        LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/${LIB_OUT_DIR})
+    install(DIRECTORY data/locale
+        DESTINATION ${CMAKE_INSTALL_PREFIX}/${DATA_OUT_DIR})
+else()
+    target_include_directories(audio-monitor PRIVATE
+        "${CMAKE_SOURCE_DIR}/UI/obs-frontend-api")
+    set_target_properties(audio-monitor PROPERTIES FOLDER "plugins/exeldro")
+    install_obs_plugin_with_data(audio-monitor data)
+endif()
+

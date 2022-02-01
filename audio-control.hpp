@@ -44,7 +44,7 @@ private slots:
 	void SetOutputVolume(double volume);
 	void SetMute(bool muted);
 	void RenameFilter(QString prev_name, QString new_name);
-	void FilterUpdated(QString name, double volume, bool locked);
+	void FilterUpdated(QString name, double volume, bool locked, bool custom_color, QColor color);
 	void FilterEnable(QString name, bool enabled);
 signals:
 

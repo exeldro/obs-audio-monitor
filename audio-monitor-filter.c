@@ -51,7 +51,8 @@ bool updateFilterName(void *data, const char *name, const char *id)
 void audio_monitor_volume_changed(void *data, calldata_t *call_data)
 {
 	struct audio_monitor_context *audio_monitor = data;
-	if (audio_monitor->updating_volume)
+	if (audio_monitor->updating_volume || !audio_monitor->source ||
+	    obs_source_removed(audio_monitor->source))
 		return;
 	double mul = calldata_float(call_data, "volume");
 	float db = obs_mul_to_db(mul);
@@ -332,6 +333,7 @@ static void audio_monitor_filter_destroy(void *data)
 					  audio_monitor_deactivated,
 					  audio_monitor);
 	}
+	audio_monitor->source = NULL;
 	audio_monitor_destroy(audio_monitor->monitor);
 	while (audio_monitor->audio_buffer.size) {
 		struct obs_audio_data cached;
@@ -523,6 +525,13 @@ static obs_properties_t *audio_monitor_properties(void *data)
 	obs_property_list_add_int(p, obs_module_text("384kHz"), 384000);
 	obs_property_list_add_int(p, obs_module_text("512kHz"), 512000);
 	obs_property_list_add_int(p, obs_module_text("705.6kHz"), 705600);
+
+	obs_properties_t *custom_color = obs_properties_create();
+	obs_properties_add_color(custom_color, "color",
+				 obs_module_text("Color"));
+	obs_properties_add_group(ppts, "custom_color",
+				 obs_module_text("CustomColor"),
+				 OBS_GROUP_CHECKABLE, custom_color);
 	return ppts;
 }
 

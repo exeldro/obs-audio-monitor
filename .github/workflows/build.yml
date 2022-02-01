@@ -48,7 +48,7 @@ jobs:
           if [ -d /usr/local/opt/speexdsp ]; then
             brew unlink speexdsp
           fi
-          brew uninstall curl php
+          brew uninstall curl php composer
           brew bundle --file ./CI/scripts/macos/Brewfile
           echo "NPROC=$(sysctl -n hw.ncpu)" >> $GITHUB_ENV
       - name: 'Install prerequisite: Pre-built dependencies'
@@ -70,7 +70,7 @@ jobs:
           echo "add_subdirectory(${{ env.PLUGIN_NAME }})" >> UI/frontend-plugins/CMakeLists.txt
           mkdir ./build
           cd ./build
-          cmake -DDISABLE_PYTHON=ON -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13 -DQTDIR="/tmp/obsdeps" -DSWIGDIR="/tmp/obsdeps" -DDepsPath="/tmp/obsdeps" ..
+          cmake -DDISABLE_PYTHON=ON -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13 -DQTDIR="/tmp/obsdeps" -DSWIGDIR="/tmp/obsdeps" -DDepsPath="/tmp/obsdeps" -DBUILD_BROWSER=OFF -DENABLE_PIPEWIRE=OFF -DBUILD_VST=OFF -DBUILD_VIRTUALCAM=OFF -DENABLE_SCRIPTING=OFF ..
           cd -
       - name: Build
         shell: bash
@@ -169,11 +169,11 @@ jobs:
           mkdir ./package
           mkdir ./build32
           cd ./build32
-          cmake -G"${{ env.CMAKE_GENERATOR }}" -A"Win32" -DCMAKE_SYSTEM_VERSION="${{ env.CMAKE_SYSTEM_VERSION }}" -DBUILD_BROWSER=false -DBUILD_CAPTIONS=false -DCOMPILE_D3D12_HOOK=false -DDepsPath="${{ github.workspace }}/cmbuild/deps/win32" -DQTDIR="${{ github.workspace }}/cmbuild/QT/${{ env.QT_VERSION }}/msvc2019" -DCOPIED_DEPENDENCIES=FALSE -DCOPY_DEPENDENCIES=TRUE ..
+          cmake -G"${{ env.CMAKE_GENERATOR }}" -A"Win32" -DCMAKE_SYSTEM_VERSION="${{ env.CMAKE_SYSTEM_VERSION }}" -DBUILD_BROWSER=false -DBUILD_VST=false -DBUILD_VIRTUALCAM=false -DBUILD_CAPTIONS=false -DCOMPILE_D3D12_HOOK=false -DENABLE_SCRIPTING=false -DDepsPath="${{ github.workspace }}/cmbuild/deps/win32" -DQTDIR="${{ github.workspace }}/cmbuild/QT/${{ env.QT_VERSION }}/msvc2019" -DCOPIED_DEPENDENCIES=FALSE -DCOPY_DEPENDENCIES=TRUE ..
           cd ..
           mkdir ./build64
           cd ./build64
-          cmake -G"${{ env.CMAKE_GENERATOR }}" -A"x64" -DCMAKE_SYSTEM_VERSION="${{ env.CMAKE_SYSTEM_VERSION }}" -DBUILD_BROWSER=false -DBUILD_CAPTIONS=false -DCOMPILE_D3D12_HOOK=false -DDepsPath="${{ github.workspace }}/cmbuild/deps/win64" -DQTDIR="${{ github.workspace }}/cmbuild/QT/${{ env.QT_VERSION }}/msvc2019_64" -DCOPIED_DEPENDENCIES=FALSE -DCOPY_DEPENDENCIES=TRUE ..
+          cmake -G"${{ env.CMAKE_GENERATOR }}" -A"x64" -DCMAKE_SYSTEM_VERSION="${{ env.CMAKE_SYSTEM_VERSION }}" -DBUILD_BROWSER=false -DBUILD_VST=false -DBUILD_VIRTUALCAM=false -DBUILD_CAPTIONS=false -DCOMPILE_D3D12_HOOK=false -DENABLE_SCRIPTING=false -DDepsPath="${{ github.workspace }}/cmbuild/deps/win64" -DQTDIR="${{ github.workspace }}/cmbuild/QT/${{ env.QT_VERSION }}/msvc2019_64" -DCOPIED_DEPENDENCIES=FALSE -DCOPY_DEPENDENCIES=TRUE ..
       - name: 'Build 32'
         run: msbuild /m /p:Configuration=RelWithDebInfo .\build32\obs-studio.sln
       - name: 'Build 64'
@@ -188,6 +188,20 @@ jobs:
           robocopy .\build64\rundir\RelWithDebInfo\obs-plugins\64bit\ .\package\obs-plugins\64bit ${{ env.PLUGIN_NAME }}.* /E /XF .gitignore
           robocopy .\build64\rundir\RelWithDebInfo\data\obs-plugins\${{ env.PLUGIN_NAME }}\ .\package\data\obs-plugins\${{ env.PLUGIN_NAME }}\ /E /XF .gitignore
           exit 0
+      - name: Create Code Signing Certificate
+        if: success() && github.event_name != 'pull_request'
+        run: |
+          New-Item -ItemType directory -Path certificate
+          Set-Content -Path certificate\certificate.txt -Value '${{ secrets.CERTIFICATE }}'
+          certutil -decode certificate\certificate.txt certificate\certificate.pfx
+      - name: Code Sign 32
+        if: success() && github.event_name != 'pull_request'
+        run: |
+          & 'C:/Program Files (x86)/Windows Kits/10/bin/10.0.20348.0/x86/signtool.exe' sign /f certificate\certificate.pfx /p '${{ secrets.CERTIFICATE_PASS }}' /t http://timestamp.comodoca.com/authenticode .\package\obs-plugins\32bit\${{ env.PLUGIN_NAME }}.dll
+      - name: Code Sign 64
+        if: success() && github.event_name != 'pull_request'
+        run: |
+          & 'C:/Program Files (x86)/Windows Kits/10/bin/10.0.20348.0/x64/signtool.exe' sign /f certificate\certificate.pfx /p '${{ secrets.CERTIFICATE_PASS }}' /t http://timestamp.comodoca.com/authenticode .\package\obs-plugins\64bit\${{ env.PLUGIN_NAME }}.dll
       - name: Publish zip
         if: success()
         uses: actions/upload-artifact@v2.2.0
@@ -202,6 +216,10 @@ jobs:
       - name: "Package Installer (Compile)"
         run: |
           & 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' /Qp ".\build64\UI\frontend-plugins\${{ env.PLUGIN_NAME }}\installer.iss"
+      - name: Code Sign Installer
+        if: success() && github.event_name != 'pull_request'
+        run: |
+          & 'C:/Program Files (x86)/Windows Kits/10/bin/10.0.20348.0/x64/signtool.exe' sign /f certificate\certificate.pfx /p '${{ secrets.CERTIFICATE_PASS }}' /t http://timestamp.comodoca.com/authenticode .\package\${{ env.PLUGIN_NAME }}-installer.exe
       - name: Publish installer
         if: success()
         uses: actions/upload-artifact@v2.2.0
