@@ -23,6 +23,7 @@ private:
 	QString GetTrackName(int i);
 	static void OBSSignal(void *data, const char *signal,
 			      calldata_t *calldata);
+	void RemoveAllSources();
 	static void OBSFrontendEvent(enum obs_frontend_event event, void *data);
 
 	static void OBSFilterAdd(void *data, calldata_t *calldata);

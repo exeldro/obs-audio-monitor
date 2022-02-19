@@ -72,6 +72,7 @@ AudioControl::~AudioControl()
 	}
 	obs_volmeter_remove_callback(obs_volmeter, OBSVolumeLevel, this);
 	obs_volmeter_destroy(obs_volmeter);
+	obs_weak_source_release(source);
 }
 
 void AudioControl::OBSVolumeLevel(void *data,

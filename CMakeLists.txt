@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.18)
-project(audio-monitor VERSION 0.8.0)
+project(audio-monitor VERSION 0.8.1)
 set(PROJECT_FULL_NAME "Audio Monitor")
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/version.h.in ${CMAKE_CURRENT_SOURCE_DIR}/version.h)

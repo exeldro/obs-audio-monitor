@@ -62,6 +62,7 @@ AudioMonitorDock::AudioMonitorDock(QWidget *parent) : QDockWidget(parent)
 					obs_data_release(output_data);
 				}
 			}
+			obs_data_array_release(outputs);
 		} else {
 			auto *control = new AudioOutputControl(0);
 			control->setSizePolicy(QSizePolicy::Preferred,
@@ -243,11 +244,15 @@ void AudioMonitorDock::OBSSignal(void *data, const char *signal,
 void AudioMonitorDock::OBSFrontendEvent(enum obs_frontend_event event,
 					void *data)
 {
-	if (event != OBS_FRONTEND_EVENT_PROFILE_CHANGED)
-		return;
-	auto *dock = static_cast<AudioMonitorDock *>(data);
-	QMetaObject::invokeMethod(dock, "UpdateTrackNames",
-				  Qt::QueuedConnection);
+	if (event == OBS_FRONTEND_EVENT_PROFILE_CHANGED) {
+		auto *dock = static_cast<AudioMonitorDock *>(data);
+		QMetaObject::invokeMethod(dock, "UpdateTrackNames",
+					  Qt::QueuedConnection);
+	} else if (event == OBS_FRONTEND_EVENT_EXIT ||
+		   event == OBS_FRONTEND_EVENT_SCENE_COLLECTION_CLEANUP) {
+		auto *dock = static_cast<AudioMonitorDock *>(data);
+		dock->RemoveAllSources();
+	}
 }
 
 void AudioMonitorDock::UpdateTrackNames()
@@ -462,6 +467,24 @@ void AudioMonitorDock::RemoveAudioControl(const QString &sourceName)
 	}
 }
 
+void AudioMonitorDock::RemoveAllSources()
+{
+	const int columns = mainLayout->columnCount();
+	int removed = 0;
+	for (int i = MAX_AUDIO_MIXES + 1; i < columns; i++) {
+		QLayoutItem *item = mainLayout->itemAtPosition(0, i);
+		if (item) {
+			QWidget *w = item->widget();
+			item = mainLayout->itemAtPosition(1, i);
+			if (!item)
+				continue;
+
+			moveAudioControl(i, -1);
+			removed++;
+		}
+	}
+}
+
 void AudioMonitorDock::addFilter(int column, obs_source_t *filter)
 {
 	QLayoutItem *item = mainLayout->itemAtPosition(1, column);
@@ -580,7 +603,8 @@ void AudioMonitorDock::LoadTrackMenu()
 					output = dynamic_cast<
 						AudioOutputControl *>(
 						item->widget());
-					if (!output || !output->HasDevice(d.key())) {
+					if (!output ||
+					    !output->HasDevice(d.key())) {
 						checked = false;
 						break;
 					}
@@ -633,7 +657,7 @@ void AudioMonitorDock::OutputDeviceChanged()
 	auto *a = static_cast<QAction *>(sender());
 	bool checked = a->isChecked();
 	int track = a->property("track").toInt();
-				QString device_id = a->property("device_id").toString();
+	QString device_id = a->property("device_id").toString();
 	if (track == -1) {
 		for (int i = 1; i <= MAX_AUDIO_MIXES; i++) {
 			auto *item = mainLayout->itemAtPosition(1, i);
