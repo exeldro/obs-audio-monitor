@@ -227,7 +227,7 @@ void audio_monitor_start(struct audio_monitor *audio_monitor)
 			audio_monitor->sr = 20;
 		}
 
-		to.samples_per_sec = audio_monitor->samples_per_sec;
+		to.samples_per_sec = (uint32_t)audio_monitor->samples_per_sec;
 		to.speakers = info->speakers;
 		to.format = audio_monitor->format;
 	}
@@ -274,8 +274,7 @@ void audio_monitor_audio(void *data, struct obs_audio_data *audio)
 				cur + resample_frames * audio_monitor->channels;
 
 			while (cur < end) {
-				*cur = (int32_t)((float)*cur *
-						 vol);
+				*cur = (int32_t)((float)*cur * vol);
 				cur++;
 			}
 		} else if (audio_monitor->format == AUDIO_FORMAT_16BIT) {
@@ -284,8 +283,7 @@ void audio_monitor_audio(void *data, struct obs_audio_data *audio)
 				cur + resample_frames * audio_monitor->channels;
 
 			while (cur < end) {
-				*cur = (int16_t)((float)*cur *
-						vol);
+				*cur = (int16_t)((float)*cur * vol);
 				cur++;
 			}
 		} else if (audio_monitor->format == AUDIO_FORMAT_U8BIT) {
@@ -294,8 +292,7 @@ void audio_monitor_audio(void *data, struct obs_audio_data *audio)
 				cur + resample_frames * audio_monitor->channels;
 
 			while (cur < end) {
-				*cur = (uint8_t)((float)*cur *
-						 vol);
+				*cur = (uint8_t)((float)*cur * vol);
 				cur++;
 			}
 		}
@@ -328,9 +325,9 @@ void audio_monitor_audio(void *data, struct obs_audio_data *audio)
 			msg[4] = audio_monitor->sr;
 
 			if (pos + frames_per_packet <= resample_frames) {
-				msg[5] = frames_per_packet - 1;
+				msg[5] = (byte)(frames_per_packet - 1);
 			} else {
-				msg[5] = resample_frames - pos - 1;
+				msg[5] = (byte)(resample_frames - pos - 1);
 			}
 			msg[6] = audio_monitor->channels - 1;
 			if (audio_monitor->format == AUDIO_FORMAT_U8BIT) {
@@ -356,7 +353,7 @@ void audio_monitor_audio(void *data, struct obs_audio_data *audio)
 			memcpy(msg + 28, resample_data[0] + pos * sample_size,
 			       msg_length - 28);
 			int result = sendto(
-				audio_monitor->sock, msg, msg_length, 0,
+				audio_monitor->sock, msg, (int)msg_length, 0,
 				(struct sockaddr *)&audio_monitor->addrDest,
 				sizeof(audio_monitor->addrDest));
 			bfree(msg);
@@ -451,7 +448,7 @@ void audio_monitor_destroy(struct audio_monitor *audio_monitor)
 const char *audio_monitor_get_device_id(struct audio_monitor *audio_monitor)
 {
 	if (!audio_monitor)
-		return;
+		return NULL;
 	return audio_monitor->device_id;
 }
 

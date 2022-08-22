@@ -55,7 +55,7 @@ void audio_monitor_volume_changed(void *data, calldata_t *call_data)
 	    obs_source_removed(audio_monitor->source))
 		return;
 	double mul = calldata_float(call_data, "volume");
-	float db = obs_mul_to_db(mul);
+	float db = obs_mul_to_db((float)mul);
 	float def;
 	if (db >= 0.0f)
 		def = 1.0f;
@@ -110,6 +110,7 @@ void audio_monitor_enabled_changed(void *data, calldata_t *call_data)
 
 void audio_monitor_activated(void *data, calldata_t *call_data)
 {
+	UNUSED_PARAMETER(call_data);
 	struct audio_monitor_context *audio_monitor = data;
 	if (!obs_source_enabled(audio_monitor->source))
 		obs_source_set_enabled(audio_monitor->source, true);
@@ -117,6 +118,7 @@ void audio_monitor_activated(void *data, calldata_t *call_data)
 
 void audio_monitor_deactivated(void *data, calldata_t *call_data)
 {
+	UNUSED_PARAMETER(call_data);
 	struct audio_monitor_context *audio_monitor = data;
 	if (obs_source_enabled(audio_monitor->source))
 		obs_source_set_enabled(audio_monitor->source, false);
@@ -174,7 +176,7 @@ static void audio_monitor_update(void *data, obs_data_t *settings)
 				audio_monitor->linked = false;
 			}
 		}
-		const int mute = obs_data_get_int(settings, "mute");
+		const int mute = (int)obs_data_get_int(settings, "mute");
 		if (audio_monitor->mute == MUTE_SOURCE_MUTE &&
 		    mute != audio_monitor->mute) {
 			signal_handler_t *sh =
@@ -250,10 +252,10 @@ static void audio_monitor_update(void *data, obs_data_t *settings)
 	}
 
 	int port = 0;
-	char *device_id = obs_data_get_string(settings, "device");
+	char *device_id = (char *)obs_data_get_string(settings, "device");
 	if (strcmp(device_id, "VBAN") == 0) {
-		device_id = obs_data_get_string(settings, "ip");
-		port = obs_data_get_int(settings, "port");
+		device_id = (char *)obs_data_get_string(settings, "ip");
+		port = (int)obs_data_get_int(settings, "port");
 	}
 	if (!audio_monitor->monitor ||
 	    strcmp(audio_monitor_get_device_id(audio_monitor->monitor),
@@ -367,7 +369,7 @@ struct obs_audio_data *audio_monitor_filter_audio(void *data,
 					? cached.timestamp - audio->timestamp
 					: audio->timestamp - cached.timestamp;
 		while (audio_monitor->audio_buffer.size > sizeof(cached) &&
-		       diff >= audio_monitor->delay * 1000000) {
+		       diff >= (uint64_t)audio_monitor->delay * 1000000) {
 
 			circlebuf_pop_front(&audio_monitor->audio_buffer, NULL,
 					    sizeof(cached));
@@ -407,10 +409,12 @@ bool audio_monitor_device_changed(obs_properties_t *props,
 				  obs_property_t *property,
 				  obs_data_t *settings)
 {
-	auto *ip = obs_properties_get(props, "ip");
-	auto *port = obs_properties_get(props, "port");
-	auto *format = obs_properties_get(props, "format");
-	auto *samples_per_sec = obs_properties_get(props, "samples_per_sec");
+	UNUSED_PARAMETER(property);
+	obs_property_t *ip = obs_properties_get(props, "ip");
+	obs_property_t *port = obs_properties_get(props, "port");
+	obs_property_t *format = obs_properties_get(props, "format");
+	obs_property_t *samples_per_sec =
+		obs_properties_get(props, "samples_per_sec");
 	if (strcmp("VBAN", obs_data_get_string(settings, "device")) == 0) {
 		obs_property_set_visible(ip, true);
 		obs_property_set_visible(port, true);

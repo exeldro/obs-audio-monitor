@@ -87,10 +87,11 @@ AudioOutputControl::AudioOutputControl(int track, obs_data_t *settings)
 					audioDevices[device_id] = monitor;
 				}
 				addDeviceColumn(
-					i + 1, device_id,
+					(int)i + 1, device_id,
 					QT_UTF8(obs_data_get_string(device,
 								    "name")),
-					obs_data_get_double(device, "volume"),
+					(float)obs_data_get_double(device,
+								   "volume"),
 					obs_data_get_bool(device, "muted"),
 					obs_data_get_bool(device, "locked"));
 				obs_data_release(device);
@@ -112,6 +113,7 @@ AudioOutputControl::~AudioOutputControl()
 void AudioOutputControl::OBSOutputAudio(void *param, size_t mix_idx,
 					struct audio_data *data)
 {
+	UNUSED_PARAMETER(mix_idx);
 	if (!data)
 		return;
 	AudioOutputControl *control = static_cast<AudioOutputControl *>(param);
@@ -122,7 +124,7 @@ void AudioOutputControl::OBSOutputAudio(void *param, size_t mix_idx,
 		return;
 	int nr_channels = info->speakers;
 
-	int nr_samples = data->frames;
+	size_t nr_samples = data->frames;
 	int channel_nr = 0;
 	for (int plane_nr = 0; plane_nr < nr_channels; plane_nr++) {
 		float *samples = (float *)data->data[plane_nr];
@@ -269,7 +271,7 @@ void AudioOutputControl::OBSOutputAudio(void *param, size_t mix_idx,
 
 	struct obs_audio_data audio;
 	for (size_t i = 0; i < MAX_AV_PLANES; i++) {
-		if (i < nr_channels)
+		if (i < (size_t)nr_channels)
 			audio.data[i] = data->data[i];
 		else
 			audio.data[i] = nullptr;

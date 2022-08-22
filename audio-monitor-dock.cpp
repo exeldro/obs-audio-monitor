@@ -51,13 +51,13 @@ AudioMonitorDock::AudioMonitorDock(QWidget *parent) : QDockWidget(parent)
 			auto output_count = obs_data_array_count(outputs);
 			if (output_count > MAX_AUDIO_MIXES)
 				output_count = MAX_AUDIO_MIXES;
-			for (int i = 0; i < output_count; i++) {
+			for (size_t i = 0; i < output_count; i++) {
 				auto *output_data =
 					obs_data_array_item(outputs, i);
 				if (output_data) {
 					if (obs_data_get_bool(output_data,
 							      "enabled")) {
-						addOutputTrack(i, output_data);
+						addOutputTrack((int)i, output_data);
 					}
 					obs_data_release(output_data);
 				}
@@ -80,7 +80,7 @@ AudioMonitorDock::AudioMonitorDock(QWidget *parent) : QDockWidget(parent)
 				       QSizePolicy::Expanding);
 		mainLayout->addWidget(control, 1, 1);
 	}
-	setFeatures(AllDockWidgetFeatures);
+	setFeatures(DockWidgetClosable|DockWidgetMovable|DockWidgetFloatable);
 	setWindowTitle(QT_UTF8(obs_module_text("AudioMonitor")));
 	setObjectName("AudioMonitorDock");
 	setFloating(true);
@@ -474,7 +474,6 @@ void AudioMonitorDock::RemoveAllSources()
 	for (int i = MAX_AUDIO_MIXES + 1; i < columns; i++) {
 		QLayoutItem *item = mainLayout->itemAtPosition(0, i);
 		if (item) {
-			QWidget *w = item->widget();
 			item = mainLayout->itemAtPosition(1, i);
 			if (!item)
 				continue;
@@ -626,7 +625,6 @@ void AudioMonitorDock::ShowOutputChanged()
 	bool checked = a->isChecked();
 	int track = a->property("track").toInt();
 	if (track == -1) {
-		const auto count = mainLayout->columnCount();
 
 		for (int i = 0; i < MAX_AUDIO_MIXES; i++) {
 			if (checked) {
