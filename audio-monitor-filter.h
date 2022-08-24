@@ -3,7 +3,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
+struct audio_monitor;
 void audio_monitor_stop(struct audio_monitor *audio_monitor);
 void audio_monitor_start(struct audio_monitor *audio_monitor);
 void audio_monitor_audio(void *data, struct obs_audio_data *audio);

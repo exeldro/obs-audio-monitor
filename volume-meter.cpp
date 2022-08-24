@@ -1,6 +1,6 @@
 #include "volume-meter.hpp"
 
-#include "../../../libobs/util/platform.h"
+#include <util/platform.h>
 
 #define CLAMP(x, min, max) ((x) < (min) ? (min) : ((x) > (max) ? (max) : (x)))
 
@@ -834,7 +834,6 @@ void VolumeMeter::paintEvent(QPaintEvent *event)
 	qreal timeSinceLastRedraw = (ts - lastRedrawTime) * 0.000000001;
 
 	const QRect rect = event->region().boundingRect();
-	int width = rect.width();
 	int height = rect.height();
 
 	handleChannelCofigurationChange();
