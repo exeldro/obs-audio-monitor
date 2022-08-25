@@ -78,6 +78,6 @@
             "qtVersion": 6
         }
     },
-    "name": "transition-table",
-    "version": "0.2.5"
+    "name": "audio-monitor",
+    "version": "0.8.1"
 }
