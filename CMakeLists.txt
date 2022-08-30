@@ -8,6 +8,11 @@ endif()
 
 project(audio-monitor VERSION 0.8.1)
 set(PROJECT_FULL_NAME "Audio Monitor")
+
+# Set new UUIDs when you start to create a new plugin.
+set(MACOS_PACKAGE_UUID "A8B95053-211E-4AB1-B4FB-6CB7BA323886")
+set(MACOS_INSTALLER_UUID "B7AAB6CD-A0A0-47E6-9BC6-76304DFB42EF")
+
 add_library(${PROJECT_NAME} MODULE)
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/version.h.in ${CMAKE_CURRENT_SOURCE_DIR}/version.h)
