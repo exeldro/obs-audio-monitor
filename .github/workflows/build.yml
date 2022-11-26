@@ -29,13 +29,13 @@ jobs:
         shell: zsh {0}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3.1.0
         with:
           path: plugin
           submodules: recursive
 
       - name: Checkout obs-studio
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3.1.0
         with:
           repository: 'obsproject/obs-studio'
           path: obs-studio
@@ -61,25 +61,25 @@ jobs:
           if [[ '${{ secrets.MACOS_SIGNING_APPLICATION_IDENTITY }}' != '' && \
                 '${{ secrets.MACOS_SIGNING_INSTALLER_IDENTITY }}' != '' && \
                 '${{ secrets.MACOS_SIGNING_CERT }}' != '' ]] {
-            print '::set-output name=haveCodesignIdent::true'
+            print 'haveCodesignIdent=true' >> $GITHUB_OUTPUT
           } else {
-            print '::set-output name=haveCodesignIdent::false'
+            print 'haveCodesignIdent=false' >> $GITHUB_OUTPUT
           }
 
           if [[ '${{ secrets.MACOS_NOTARIZATION_USERNAME }}' != '' && \
                 '${{ secrets.MACOS_NOTARIZATION_PASSWORD }}' != '' ]] {
-            print '::set-output name=haveNotarizationUser::true'
+            print 'haveNotarizationUser=true' >> $GITHUB_OUTPUT
           } else {
-            print '::set-output name=haveNotarizationUser::false'
+            print 'haveNotarizationUser=false' >> $GITHUB_OUTPUT
           }
           print '::endgroup::'
 
-          print "::set-output name=ccacheDate::$(date +"%Y-%m-%d")"
-          print "::set-output name=commitHash::${"$(git rev-parse HEAD)"[0,9]}"
+          print "ccacheDate=$(date +"%Y-%m-%d")" >> $GITHUB_OUTPUT
+          print "commitHash=${"$(git rev-parse HEAD)"[0,9]}" >> $GITHUB_OUTPUT
 
       - name: Restore Compilation Cache
         id: ccache-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v3.0.11
         with:
           path: ${{ github.workspace }}/.ccache
           key: macos-${{ matrix.arch }}-ccache-plugin-${{ steps.setup.outputs.ccacheDate }}
@@ -91,9 +91,9 @@ jobs:
         if: ${{ github.event_name == 'pull_request' }}
         run: |
           if [[ -n "$(curl -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" -s "${{ github.event.pull_request.url }}" | jq -e '.labels[] | select(.name == "Seeking Testers")')" ]] {
-            print '::set-output name=found::true'
+            print 'found=true' >> $GITHUB_OUTPUT
           } else {
-            print '::set-output name=found::false'
+            print 'found=false' >> $GITHUB_OUTPUT
           }
 
       - name: Install Apple Developer Certificate
@@ -133,7 +133,7 @@ jobs:
           codesignPass: ${{ secrets.MACOS_NOTARIZATION_PASSWORD }}
 
       - name: Upload Build Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v3.1.1
         with:
           name: ${{ env.PLUGIN_NAME }}-macos-${{ matrix.arch }}-${{ steps.setup.outputs.commitHash }}
           path: ${{ github.workspace }}/plugin/release/${{ env.PLUGIN_NAME }}-*-macos-${{ matrix.arch }}.pkg
@@ -158,15 +158,15 @@ jobs:
       WINDOWS_DEPS_VERSION: '2022-08-02'
     steps:
       - name: Add msbuild to PATH
-        uses: microsoft/setup-msbuild@v1.0.2
+        uses: microsoft/setup-msbuild@v1.1.3
       - name: Checkout obs
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3.1.0
         with:
           repository: obsproject/obs-studio
           ref: ${{ env.OBS_VERSION }}
           submodules: 'recursive'
       - name: Checkout plugin
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3.1.0
         with:
           path: UI/frontend-plugins/${{ env.PLUGIN_NAME}}
       - name: Add plugin to obs cmake
@@ -203,13 +203,13 @@ jobs:
           exit 0
       - name: Publish zip
         if: success()
-        uses: actions/upload-artifact@v2.2.0
+        uses: actions/upload-artifact@v3.1.1
         with:
           name: '${{ env.FILE_NAME }}'
           path: package/*
       - name: Publish Installer Files
         if: success()
-        uses: actions/upload-artifact@v2.2.0
+        uses: actions/upload-artifact@v3.1.1
         with:
           name: 'installer-files'
           path: installer/*
@@ -230,17 +230,17 @@ jobs:
           $env:FILE_NAME_X64="${{ env.PLUGIN_NAME }}-${{ github.sha }}-windows-x64"
           echo "FILE_NAME_X64=${env:FILE_NAME_X64}" >> ${env:GITHUB_ENV}
       - name: Retrieve x86 build
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3.0.1
         with:
           name: '${{ env.FILE_NAME_X86 }}'
           path: ./package
       - name: Retrieve x64 build
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3.0.1
         with:
           name: '${{ env.FILE_NAME_X64 }}'
           path: ./package
       - name: Retrieve installer files
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3.0.1
         with:
           name: 'installer-files'
           path: .
@@ -260,7 +260,7 @@ jobs:
           & 'C:/Program Files (x86)/Windows Kits/10/bin/10.0.20348.0/x64/signtool.exe' sign /f certificate\certificate.pfx /p '${{ secrets.CERTIFICATE_PASS }}' /t http://timestamp.comodoca.com/authenticode .\package\obs-plugins\64bit\${{ env.PLUGIN_NAME }}.dll
       - name: Publish zip
         if: success()
-        uses: actions/upload-artifact@v2.2.0
+        uses: actions/upload-artifact@v3.1.1
         with:
           name: '${{ env.FILE_NAME }}'
           path: package/*
@@ -278,11 +278,11 @@ jobs:
           & 'C:/Program Files (x86)/Windows Kits/10/bin/10.0.20348.0/x64/signtool.exe' sign /f certificate\certificate.pfx /p '${{ secrets.CERTIFICATE_PASS }}' /t http://timestamp.comodoca.com/authenticode .\package\${{ env.PLUGIN_NAME }}-installer.exe
       - name: Publish installer
         if: success()
-        uses: actions/upload-artifact@v2.2.0
+        uses: actions/upload-artifact@v3.1.1
         with:
           name: '${{ env.FILE_NAME }}-installer'
           path: package/*.exe
       - name: Remove temp artifacts
-        uses: geekyeggo/delete-artifact@v1
+        uses: geekyeggo/delete-artifact@v2.0.0
         with:
           name: "${{ env.FILE_NAME_X86 }}\n${{ env.FILE_NAME_X64 }}\ninstaller-files"
