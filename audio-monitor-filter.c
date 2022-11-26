@@ -536,6 +536,11 @@ static obs_properties_t *audio_monitor_properties(void *data)
 	obs_properties_add_group(ppts, "custom_color",
 				 obs_module_text("CustomColor"),
 				 OBS_GROUP_CHECKABLE, custom_color);
+	obs_properties_add_text(
+		ppts, "plugin_info",
+		"<a href=\"https://obsproject.com/forum/resources/audio-monitor.1186/\">Audio Monitor</a> (" PROJECT_VERSION
+		") by <a href=\"https://www.exeldro.com\">Exeldro</a>",
+		OBS_TEXT_INFO);
 	return ppts;
 }
 
