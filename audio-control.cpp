@@ -341,7 +341,9 @@ void AudioControl::SetOutputVolume(double volume)
 		      (LOG_OFFSET_VAL - LOG_RANGE_VAL);
 
 	int val = def * 10000.0;
+	changing_output_volume = true;
 	slider->setValue(val);
+	changing_output_volume = false;
 }
 
 void AudioControl::OBSMute(void *data, calldata_t *call_data)
@@ -443,7 +445,9 @@ void AudioControl::FilterUpdated(QString name, double volume, bool locked,
 			auto *slider = static_cast<QSlider *>(item->widget());
 			int def = volume * 100.0;
 			if (slider->value() != def) {
+				changing_monitor_volume = true;
 				slider->setValue(def);
+				changing_monitor_volume = false;
 			}
 			slider->setStyleSheet(
 				custom_color
@@ -655,7 +659,7 @@ void AudioControl::SliderChanged(int vol)
 	if (!s)
 		return;
 	QLayoutItem *i = mainLayout->itemAtPosition(1, 1);
-	if (i && i->widget() == w) {
+	if (i && i->widget() == w && !changing_output_volume) {
 		float def = (float)vol / 10000.0f;
 		float db;
 		if (def >= 1.0f)
@@ -673,6 +677,8 @@ void AudioControl::SliderChanged(int vol)
 		obs_source_release(s);
 		return;
 	}
+	if (changing_monitor_volume)
+		return;
 	obs_source_t *f = obs_source_get_filter_by_name(
 		s, w->objectName().toUtf8().constData());
 	obs_source_release(s);

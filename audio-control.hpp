@@ -24,6 +24,8 @@ private:
 	obs_volmeter_t *obs_volmeter;
 	QGridLayout *mainLayout;
 	bool showSliderNames;
+	bool changing_output_volume = false;
+	bool changing_monitor_volume = false;
 
 	static void OBSVolumeLevel(void *data,
 				   const float magnitude[MAX_AUDIO_CHANNELS],
@@ -44,7 +46,8 @@ private slots:
 	void SetOutputVolume(double volume);
 	void SetMute(bool muted);
 	void RenameFilter(QString prev_name, QString new_name);
-	void FilterUpdated(QString name, double volume, bool locked, bool custom_color, QColor color);
+	void FilterUpdated(QString name, double volume, bool locked,
+			   bool custom_color, QColor color);
 	void FilterEnable(QString name, bool enabled);
 signals:
 
