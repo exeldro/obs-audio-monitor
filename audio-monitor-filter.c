@@ -28,14 +28,14 @@ static const char *audio_monitor_get_name(void *unused)
 struct updateFilterNameData {
 
 	const char *device_id;
-	const char *device_name;
+	char *device_name;
 };
 
 bool updateFilterName(void *data, const char *name, const char *id)
 {
 	struct updateFilterNameData *d = data;
 	if (strcmp(id, d->device_id) == 0) {
-		d->device_name = name;
+		d->device_name = bstrdup(name);
 		return false;
 	}
 	return true;
@@ -266,11 +266,21 @@ static void audio_monitor_update(void *data, obs_data_t *settings)
 			d.device_name = NULL;
 			obs_enum_audio_monitoring_devices(updateFilterName, &d);
 			if (d.device_name) {
-				obs_data_set_string(settings, "deviceName",
-						    d.device_name);
+				const char *dn = obs_data_get_string(
+					settings, "deviceName");
+				if (strcmp(dn, d.device_name) != 0) {
+					obs_data_set_string(settings,
+							    "deviceName",
+							    d.device_name);
+				}
+				bfree(d.device_name);
 			}
 		} else {
-			obs_data_set_string(settings, "deviceName", device_id);
+			const char *dn =
+				obs_data_get_string(settings, "deviceName");
+			if (strcmp(dn, device_id) != 0)
+				obs_data_set_string(settings, "deviceName",
+						    device_id);
 		}
 		struct audio_monitor *old = audio_monitor->monitor;
 		audio_monitor->monitor = NULL;
