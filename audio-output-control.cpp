@@ -117,16 +117,15 @@ void AudioOutputControl::OBSOutputAudio(void *param, size_t mix_idx,
 	if (!data)
 		return;
 	AudioOutputControl *control = static_cast<AudioOutputControl *>(param);
-
-	const struct audio_output_info *info =
-		audio_output_get_info(obs_get_audio());
-	if (!info)
+	
+	audio_t* oa = obs_get_audio();
+	if (!oa)
 		return;
-	int nr_channels = info->speakers;
+	size_t planes = audio_output_get_planes(oa);
 
 	size_t nr_samples = data->frames;
 	int channel_nr = 0;
-	for (int plane_nr = 0; plane_nr < nr_channels; plane_nr++) {
+	for (size_t plane_nr = 0; plane_nr < planes; plane_nr++) {
 		float *samples = (float *)data->data[plane_nr];
 		if (!samples) {
 			continue;
@@ -239,7 +238,7 @@ void AudioOutputControl::OBSOutputAudio(void *param, size_t mix_idx,
 	}
 
 	channel_nr = 0;
-	for (int plane_nr = 0; plane_nr < nr_channels; plane_nr++) {
+	for (size_t plane_nr = 0; plane_nr < planes; plane_nr++) {
 		float *samples = (float *)data->data[plane_nr];
 		if (!samples) {
 			continue;
@@ -271,7 +270,7 @@ void AudioOutputControl::OBSOutputAudio(void *param, size_t mix_idx,
 
 	struct obs_audio_data audio;
 	for (size_t i = 0; i < MAX_AV_PLANES; i++) {
-		if (i < (size_t)nr_channels)
+		if (i < planes)
 			audio.data[i] = data->data[i];
 		else
 			audio.data[i] = nullptr;

@@ -9,7 +9,7 @@ else()
   cmake_minimum_required(VERSION 3.18)
 endif()
 
-project(audio-monitor VERSION 0.8.3)
+project(audio-monitor VERSION 0.8.4)
 set(PROJECT_FULL_NAME "Audio Monitor")
 
 # Set new UUIDs when you start to create a new plugin.
