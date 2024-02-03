@@ -2,7 +2,10 @@
 
 #include <qevent.h>
 
-LockedCheckBox::LockedCheckBox() {}
+LockedCheckBox::LockedCheckBox()
+{
+	setProperty("lockCheckBox", true);
+}
 
 LockedCheckBox::LockedCheckBox(QWidget *parent) : QCheckBox(parent) {}
 

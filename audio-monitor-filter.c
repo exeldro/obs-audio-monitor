@@ -4,7 +4,19 @@
 #include "obs-module.h"
 #include "obs.h"
 #include "version.h"
-#include "util/circlebuf.h"
+#if LIBOBS_API_VER >= MAKE_SEMANTIC_VERSION(30, 1, 0)
+#include <util/deque.h>
+#define circlebuf_peek_front deque_peek_front
+#define circlebuf_peek_back deque_peek_back
+#define circlebuf_push_front deque_push_front
+#define circlebuf_push_back deque_push_back
+#define circlebuf_pop_front deque_pop_front
+#define circlebuf_pop_back deque_pop_back
+#define circlebuf_init deque_init
+#define circlebuf_free deque_free
+#else
+#include <util/circlebuf.h>
+#endif
 
 #define MUTE_NEVER 0
 #define MUTE_NOT_ACTIVE 1
@@ -14,7 +26,11 @@ struct audio_monitor_context {
 	obs_source_t *source;
 	struct audio_monitor *monitor;
 	long long delay;
+#if LIBOBS_API_VER >= MAKE_SEMANTIC_VERSION(30, 1, 0)
+	struct deque audio_buffer;
+#else
 	struct circlebuf audio_buffer;
+#endif
 	bool linked;
 	bool updating_volume;
 	int mute;
