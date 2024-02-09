@@ -362,7 +362,10 @@ static void audio_monitor_filter_destroy(void *data)
 					  audio_monitor);
 	}
 	audio_monitor->source = NULL;
-	audio_monitor_destroy(audio_monitor->monitor);
+	if (audio_monitor->monitor) {
+		audio_monitor_destroy(audio_monitor->monitor);
+		audio_monitor->monitor = NULL;
+	}
 	while (audio_monitor->audio_buffer.size) {
 		struct obs_audio_data cached;
 		circlebuf_pop_front(&audio_monitor->audio_buffer, &cached,
@@ -581,6 +584,38 @@ void audio_monitor_defaults(obs_data_t *settings)
 		audio_output_get_info(obs_get_audio())->samples_per_sec);
 }
 
+void audio_monitor_filter_remove(void *data, obs_source_t *source)
+{
+	UNUSED_PARAMETER(source);
+	struct audio_monitor_context *audio_monitor = data;
+	obs_source_t *parent = obs_filter_get_parent(audio_monitor->source);
+	if (parent) {
+		signal_handler_t *sh = obs_source_get_signal_handler(parent);
+		signal_handler_disconnect(sh, "volume",
+					  audio_monitor_volume_changed,
+					  audio_monitor);
+		signal_handler_disconnect(
+			sh, "mute", audio_monitor_mute_changed, audio_monitor);
+		signal_handler_disconnect(
+			sh, "activate", audio_monitor_activated, audio_monitor);
+		signal_handler_disconnect(sh, "deactivated",
+					  audio_monitor_deactivated,
+					  audio_monitor);
+	}
+	if (audio_monitor->monitor) {
+		audio_monitor_destroy(audio_monitor->monitor);
+		audio_monitor->monitor = NULL;
+	}
+	while (audio_monitor->audio_buffer.size) {
+		struct obs_audio_data cached;
+		circlebuf_pop_front(&audio_monitor->audio_buffer, &cached,
+				    sizeof(cached));
+		for (size_t i = 0; i < MAX_AV_PLANES; i++)
+			bfree(cached.data[i]);
+	}
+	circlebuf_free(&audio_monitor->audio_buffer);
+}
+
 struct obs_source_info audio_monitor_filter_info = {
 	.id = "audio_monitor",
 	.type = OBS_SOURCE_TYPE_FILTER,
@@ -593,6 +628,7 @@ struct obs_source_info audio_monitor_filter_info = {
 	.get_defaults = audio_monitor_defaults,
 	.get_properties = audio_monitor_properties,
 	.filter_audio = audio_monitor_filter_audio,
+	.filter_remove = audio_monitor_filter_remove,
 };
 
 OBS_DECLARE_MODULE()
