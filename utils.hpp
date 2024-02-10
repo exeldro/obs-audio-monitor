@@ -18,6 +18,9 @@ public:
 
 class MuteCheckBox : public QCheckBox {
 	Q_OBJECT
+public:
+	MuteCheckBox();
+	explicit MuteCheckBox(QWidget *parent);
 };
 
 class SliderIgnoreScroll : public QSlider {

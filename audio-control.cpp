@@ -677,8 +677,10 @@ void AudioControl::SliderChanged(int vol)
 		obs_source_release(s);
 		return;
 	}
-	if (changing_monitor_volume)
+	if (changing_monitor_volume) {
+		obs_source_release(s);
 		return;
+	}
 	obs_source_t *f = obs_source_get_filter_by_name(
 		s, w->objectName().toUtf8().constData());
 	obs_source_release(s);

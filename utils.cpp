@@ -7,7 +7,19 @@ LockedCheckBox::LockedCheckBox()
 	setProperty("lockCheckBox", true);
 }
 
-LockedCheckBox::LockedCheckBox(QWidget *parent) : QCheckBox(parent) {}
+LockedCheckBox::LockedCheckBox(QWidget *parent) : QCheckBox(parent) {
+	setProperty("lockCheckBox", true);
+}
+
+MuteCheckBox::MuteCheckBox()
+{
+	setProperty("muteCheckBox", true);
+}
+
+MuteCheckBox::MuteCheckBox(QWidget *parent) : QCheckBox(parent)
+{
+	setProperty("muteCheckBox", true);
+}
 
 SliderIgnoreScroll::SliderIgnoreScroll(QWidget *parent) : QSlider(parent)
 {
