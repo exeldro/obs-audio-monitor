@@ -57,7 +57,8 @@ AudioMonitorDock::AudioMonitorDock(QWidget *parent) : QDockWidget(parent)
 				if (output_data) {
 					if (obs_data_get_bool(output_data,
 							      "enabled")) {
-						addOutputTrack((int)i, output_data);
+						addOutputTrack((int)i,
+							       output_data);
 					}
 					obs_data_release(output_data);
 				}
@@ -80,7 +81,8 @@ AudioMonitorDock::AudioMonitorDock(QWidget *parent) : QDockWidget(parent)
 				       QSizePolicy::Expanding);
 		mainLayout->addWidget(control, 1, 1);
 	}
-	setFeatures(DockWidgetClosable|DockWidgetMovable|DockWidgetFloatable);
+	setFeatures(DockWidgetClosable | DockWidgetMovable |
+		    DockWidgetFloatable);
 	setWindowTitle(QT_UTF8(obs_module_text("AudioMonitor")));
 	setObjectName("AudioMonitorDock");
 	setFloating(true);
@@ -778,24 +780,23 @@ bool AudioMonitorDock::OBSAddAudioSource(void *data, obs_source_t *source)
 	int columns = dock->mainLayout->columnCount();
 	for (int i = MAX_AUDIO_MIXES + 1; i < columns; i++) {
 		QLayoutItem *item = dock->mainLayout->itemAtPosition(0, i);
-		if (item) {
-			QWidget *w = item->widget();
-			if (sourceName == w->objectName()) {
-				item = dock->mainLayout->itemAtPosition(1, i);
-				AudioControl *audioControl =
-					static_cast<AudioControl *>(
-						item->widget());
-				obs_data_t *priv_settings =
-					obs_source_get_private_settings(source);
-				bool hidden = obs_data_get_bool(priv_settings,
-								"mixer_hidden");
-				obs_data_release(priv_settings);
-				audioControl->ShowOutputSlider(
-					dock->showOutputSlider && !hidden);
-				if (!dock->showOutputSlider || hidden)
-					dock->RemoveSourcesWithoutSliders();
-				return true;
-			}
+		if (!item)
+			continue;
+		QWidget *w = item->widget();
+		if (sourceName == w->objectName()) {
+			item = dock->mainLayout->itemAtPosition(1, i);
+			AudioControl *audioControl =
+				static_cast<AudioControl *>(item->widget());
+			obs_data_t *priv_settings =
+				obs_source_get_private_settings(source);
+			bool hidden = obs_data_get_bool(priv_settings,
+							"mixer_hidden");
+			obs_data_release(priv_settings);
+			audioControl->ShowOutputSlider(dock->showOutputSlider &&
+						       !hidden);
+			if (!dock->showOutputSlider || hidden)
+				dock->RemoveSourcesWithoutSliders();
+			return true;
 		}
 	}
 	if (dock->showOnlyActive && !obs_source_active(source))
@@ -833,15 +834,15 @@ void AudioMonitorDock::RemoveSourcesWithoutSliders()
 	int removed = 0;
 	for (int column = MAX_AUDIO_MIXES + 1; column < columns; column++) {
 		QLayoutItem *item = mainLayout->itemAtPosition(1, column);
-		if (item) {
-			AudioControl *audioControl =
-				static_cast<AudioControl *>(item->widget());
-			if (!audioControl->HasSliders()) {
-				moveAudioControl(column, -1);
-				removed++;
-			} else if (removed > 0) {
-				moveAudioControl(column, column - removed);
-			}
+		if (!item)
+			continue;
+		AudioControl *audioControl =
+			static_cast<AudioControl *>(item->widget());
+		if (!audioControl->HasSliders()) {
+			moveAudioControl(column, -1);
+			removed++;
+		} else if (removed > 0) {
+			moveAudioControl(column, column - removed);
 		}
 	}
 }
@@ -857,26 +858,23 @@ void AudioMonitorDock::OnlyActiveChanged()
 		     column++) {
 			QLayoutItem *item =
 				mainLayout->itemAtPosition(1, column);
-			if (item) {
-				AudioControl *audioControl =
-					static_cast<AudioControl *>(
-						item->widget());
-				obs_source_t *s = obs_weak_source_get_source(
-					audioControl->GetSource());
-				if (s) {
-					if (!obs_source_active(s)) {
-						moveAudioControl(column, -1);
-						removed++;
-					} else if (removed > 0) {
-						moveAudioControl(
-							column,
-							column - removed);
-					}
-					obs_source_release(s);
+			if (!item)
+				continue;
+			AudioControl *audioControl =
+				static_cast<AudioControl *>(item->widget());
+			obs_source_t *s = obs_weak_source_get_source(
+				audioControl->GetSource());
+			if (s) {
+				if (!obs_source_active(s)) {
+					moveAudioControl(column, -1);
+					removed++;
 				} else if (removed > 0) {
 					moveAudioControl(column,
 							 column - removed);
 				}
+				obs_source_release(s);
+			} else if (removed > 0) {
+				moveAudioControl(column, column - removed);
 			}
 		}
 	} else {
