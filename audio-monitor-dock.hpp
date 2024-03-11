@@ -2,13 +2,14 @@
 #include <QDockWidget>
 #include <QHBoxLayout>
 #include <QScrollArea>
+#include <QStackedWidget>
 
 #include "obs.h"
 #include "audio-control.hpp"
 #include "audio-monitor-filter.h"
 #include <obs-frontend-api.h>
 
-class AudioMonitorDock : public QDockWidget {
+class AudioMonitorDock : public QStackedWidget {
 	Q_OBJECT
 
 private:

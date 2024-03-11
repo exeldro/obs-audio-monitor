@@ -22,11 +22,27 @@ MODULE_EXPORT void load_audio_monitor_dock()
 	const auto main_window =
 		static_cast<QMainWindow *>(obs_frontend_get_main_window());
 	obs_frontend_push_ui_translation(obs_module_get_string);
-	obs_frontend_add_dock(new AudioMonitorDock(main_window));
+
+#if LIBOBS_API_VER >= MAKE_SEMANTIC_VERSION(30, 0, 0)
+	obs_frontend_add_dock_by_id("AudioMonitorDock",
+				    obs_module_text("AudioMonitor"),
+				    new AudioMonitorDock(main_window));
+#else
+	const auto dock = new QDockWidget(main_window);
+	dock->setObjectName("AudioMonitorDock");
+	dock->setWindowTitle(
+		QString::fromUtf8(obs_module_text("AudioMonitor")));
+	dock->setWidget(new AudioMonitorDock(main_window));
+	dock->setFeatures(QDockWidget::DockWidgetMovable |
+			  QDockWidget::DockWidgetFloatable);
+	dock->setFloating(true);
+	dock->hide();
+	obs_frontend_add_dock(dock);
+#endif
 	obs_frontend_pop_ui_translation();
 }
 
-AudioMonitorDock::AudioMonitorDock(QWidget *parent) : QDockWidget(parent)
+AudioMonitorDock::AudioMonitorDock(QWidget *parent) : QStackedWidget(parent)
 {
 
 	mainLayout = new QGridLayout;
@@ -81,12 +97,6 @@ AudioMonitorDock::AudioMonitorDock(QWidget *parent) : QDockWidget(parent)
 				       QSizePolicy::Expanding);
 		mainLayout->addWidget(control, 1, 1);
 	}
-	setFeatures(DockWidgetClosable | DockWidgetMovable |
-		    DockWidgetFloatable);
-	setWindowTitle(QT_UTF8(obs_module_text("AudioMonitor")));
-	setObjectName("AudioMonitorDock");
-	setFloating(true);
-	hide();
 
 	signal_handler_connect_global(obs_get_signal_handler(), OBSSignal,
 				      this);
@@ -106,9 +116,8 @@ AudioMonitorDock::AudioMonitorDock(QWidget *parent) : QDockWidget(parent)
 	scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
 	scrollArea->setWidgetResizable(true);
 
-	auto *stackedMixerArea = new QStackedWidget;
-	stackedMixerArea->setObjectName(QStringLiteral("stackedMixerArea"));
-	stackedMixerArea->addWidget(scrollArea);
+	setObjectName(QStringLiteral("stackedMixerArea"));
+	addWidget(scrollArea);
 
 	auto *config = new QPushButton(this);
 	config->setProperty("themeID", "configIconSmall");
@@ -124,8 +133,6 @@ AudioMonitorDock::AudioMonitorDock(QWidget *parent) : QDockWidget(parent)
 
 	dockWidgetContents->setLayout(mainLayout);
 	scrollArea->setWidget(dockWidgetContents);
-
-	setWidget(stackedMixerArea);
 }
 
 AudioMonitorDock::~AudioMonitorDock()
