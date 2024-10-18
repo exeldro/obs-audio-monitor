@@ -121,6 +121,7 @@ AudioMonitorDock::AudioMonitorDock(QWidget *parent) : QStackedWidget(parent)
 
 	auto *config = new QPushButton(this);
 	config->setProperty("themeID", "configIconSmall");
+	config->setProperty("class", "icon-gear");
 	config->setFlat(true);
 	config->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Maximum);
 	config->setMaximumSize(22, 22);
