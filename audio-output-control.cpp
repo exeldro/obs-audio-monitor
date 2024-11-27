@@ -8,12 +8,11 @@
 
 /* msb(h, g, f, e) lsb(d, c, b, a)   -->  msb(h, h, g, f) lsb(e, d, c, b)
  */
-#define SHIFT_RIGHT_2PS(msb, lsb)                                          \
-	{                                                                  \
-		__m128 tmp =                                               \
-			_mm_shuffle_ps(lsb, msb, _MM_SHUFFLE(0, 0, 3, 3)); \
-		lsb = _mm_shuffle_ps(lsb, tmp, _MM_SHUFFLE(2, 1, 2, 1));   \
-		msb = _mm_shuffle_ps(msb, msb, _MM_SHUFFLE(3, 3, 2, 1));   \
+#define SHIFT_RIGHT_2PS(msb, lsb)                                               \
+	{                                                                       \
+		__m128 tmp = _mm_shuffle_ps(lsb, msb, _MM_SHUFFLE(0, 0, 3, 3)); \
+		lsb = _mm_shuffle_ps(lsb, tmp, _MM_SHUFFLE(2, 1, 2, 1));        \
+		msb = _mm_shuffle_ps(msb, msb, _MM_SHUFFLE(3, 3, 2, 1));        \
 	}
 
 /* x4(d, c, b, a)  -->  max(a, b, c, d)
@@ -48,8 +47,7 @@
 		out = _mm_add_ps(out, mul3);              \
 	}
 
-AudioOutputControl::AudioOutputControl(int track, obs_data_t *settings)
-	: track(track)
+AudioOutputControl::AudioOutputControl(int track, obs_data_t *settings) : track(track)
 {
 
 	volMeter = new VolumeMeter();
@@ -62,38 +60,25 @@ AudioOutputControl::AudioOutputControl(int track, obs_data_t *settings)
 	mainLayout->addWidget(volMeter, 0, 0, -1, 1, Qt::AlignHCenter);
 
 	if (settings) {
-		obs_data_array_t *devices =
-			obs_data_get_array(settings, "devices");
+		obs_data_array_t *devices = obs_data_get_array(settings, "devices");
 		if (devices) {
-			const size_t device_count =
-				obs_data_array_count(devices);
+			const size_t device_count = obs_data_array_count(devices);
 			for (size_t i = 0; i < device_count; i++) {
 				auto *device = obs_data_array_item(devices, i);
 				if (!device)
 					continue;
-				QString device_id = QT_UTF8(
-					obs_data_get_string(device, "id"));
+				QString device_id = QT_UTF8(obs_data_get_string(device, "id"));
 				auto it = audioDevices.find(device_id);
 				if (it == audioDevices.end()) {
-					audio_monitor *monitor =
-						audio_monitor_create(
-							QT_TO_UTF8(device_id),
-							obs_data_get_string(
-								device,
-								"deviceName"),
-							0);
+					audio_monitor *monitor = audio_monitor_create(QT_TO_UTF8(device_id),
+										      obs_data_get_string(device, "deviceName"), 0);
 					audio_monitor_set_volume(monitor, 1.0f);
 					audio_monitor_start(monitor);
 					audioDevices[device_id] = monitor;
 				}
-				addDeviceColumn(
-					(int)i + 1, device_id,
-					QT_UTF8(obs_data_get_string(device,
-								    "name")),
-					(float)obs_data_get_double(device,
-								   "volume"),
-					obs_data_get_bool(device, "muted"),
-					obs_data_get_bool(device, "locked"));
+				addDeviceColumn((int)i + 1, device_id, QT_UTF8(obs_data_get_string(device, "name")),
+						(float)obs_data_get_double(device, "volume"), obs_data_get_bool(device, "muted"),
+						obs_data_get_bool(device, "locked"));
 				obs_data_release(device);
 			}
 			obs_data_array_release(devices);
@@ -101,8 +86,7 @@ AudioOutputControl::AudioOutputControl(int track, obs_data_t *settings)
 	}
 
 	setLayout(mainLayout);
-	audio_output_connect(obs_get_audio(), track, nullptr, OBSOutputAudio,
-			     this);
+	audio_output_connect(obs_get_audio(), track, nullptr, OBSOutputAudio, this);
 }
 
 AudioOutputControl::~AudioOutputControl()
@@ -110,15 +94,14 @@ AudioOutputControl::~AudioOutputControl()
 	audio_output_disconnect(obs_get_audio(), track, OBSOutputAudio, this);
 }
 
-void AudioOutputControl::OBSOutputAudio(void *param, size_t mix_idx,
-					struct audio_data *data)
+void AudioOutputControl::OBSOutputAudio(void *param, size_t mix_idx, struct audio_data *data)
 {
 	UNUSED_PARAMETER(mix_idx);
 	if (!data)
 		return;
 	AudioOutputControl *control = static_cast<AudioOutputControl *>(param);
-	
-	audio_t* oa = obs_get_audio();
+
+	audio_t *oa = obs_get_audio();
 	if (!oa)
 		return;
 	size_t planes = audio_output_get_planes(oa);
@@ -133,20 +116,15 @@ void AudioOutputControl::OBSOutputAudio(void *param, size_t mix_idx,
 
 		/* volmeter->prev_samples may not be aligned to 16 bytes;
 		 * use unaligned load. */
-		__m128 previous_samples =
-			_mm_loadu_ps(control->prev_samples[channel_nr]);
+		__m128 previous_samples = _mm_loadu_ps(control->prev_samples[channel_nr]);
 
 		/* These are normalized-sinc parameters for interpolating over sample
 		* points which are located at x-coords: -1.5, -0.5, +0.5, +1.5.
 		* And oversample points at x-coords: -0.3, -0.1, 0.1, 0.3. */
-		const __m128 m3 = _mm_set_ps(-0.155915f, 0.935489f, 0.233872f,
-					     -0.103943f);
-		const __m128 m1 = _mm_set_ps(-0.216236f, 0.756827f, 0.504551f,
-					     -0.189207f);
-		const __m128 p1 = _mm_set_ps(-0.189207f, 0.504551f, 0.756827f,
-					     -0.216236f);
-		const __m128 p3 = _mm_set_ps(-0.103943f, 0.233872f, 0.935489f,
-					     -0.155915f);
+		const __m128 m3 = _mm_set_ps(-0.155915f, 0.935489f, 0.233872f, -0.103943f);
+		const __m128 m1 = _mm_set_ps(-0.216236f, 0.756827f, 0.504551f, -0.189207f);
+		const __m128 p1 = _mm_set_ps(-0.189207f, 0.504551f, 0.756827f, -0.216236f);
+		const __m128 p3 = _mm_set_ps(-0.103943f, 0.233872f, 0.935489f, -0.155915f);
 
 		__m128 work = previous_samples;
 		__m128 peak = previous_samples;
@@ -160,23 +138,19 @@ void AudioOutputControl::OBSOutputAudio(void *param, size_t mix_idx,
 
 			/* Shift in the next point. */
 			SHIFT_RIGHT_2PS(new_work, work);
-			VECTOR_MATRIX_CROSS_PS(intrp_samples, work, m3, m1, p1,
-					       p3);
+			VECTOR_MATRIX_CROSS_PS(intrp_samples, work, m3, m1, p1, p3);
 			peak = _mm_max_ps(peak, abs_ps(intrp_samples));
 
 			SHIFT_RIGHT_2PS(new_work, work);
-			VECTOR_MATRIX_CROSS_PS(intrp_samples, work, m3, m1, p1,
-					       p3);
+			VECTOR_MATRIX_CROSS_PS(intrp_samples, work, m3, m1, p1, p3);
 			peak = _mm_max_ps(peak, abs_ps(intrp_samples));
 
 			SHIFT_RIGHT_2PS(new_work, work);
-			VECTOR_MATRIX_CROSS_PS(intrp_samples, work, m3, m1, p1,
-					       p3);
+			VECTOR_MATRIX_CROSS_PS(intrp_samples, work, m3, m1, p1, p3);
 			peak = _mm_max_ps(peak, abs_ps(intrp_samples));
 
 			SHIFT_RIGHT_2PS(new_work, work);
-			VECTOR_MATRIX_CROSS_PS(intrp_samples, work, m3, m1, p1,
-					       p3);
+			VECTOR_MATRIX_CROSS_PS(intrp_samples, work, m3, m1, p1, p3);
 			peak = _mm_max_ps(peak, abs_ps(intrp_samples));
 		}
 
@@ -187,44 +161,28 @@ void AudioOutputControl::OBSOutputAudio(void *param, size_t mix_idx,
 		case 0:
 			break;
 		case 1:
-			control->prev_samples[channel_nr][0] =
-				control->prev_samples[channel_nr][1];
-			control->prev_samples[channel_nr][1] =
-				control->prev_samples[channel_nr][2];
-			control->prev_samples[channel_nr][2] =
-				control->prev_samples[channel_nr][3];
-			control->prev_samples[channel_nr][3] =
-				samples[nr_samples - 1];
+			control->prev_samples[channel_nr][0] = control->prev_samples[channel_nr][1];
+			control->prev_samples[channel_nr][1] = control->prev_samples[channel_nr][2];
+			control->prev_samples[channel_nr][2] = control->prev_samples[channel_nr][3];
+			control->prev_samples[channel_nr][3] = samples[nr_samples - 1];
 			break;
 		case 2:
-			control->prev_samples[channel_nr][0] =
-				control->prev_samples[channel_nr][2];
-			control->prev_samples[channel_nr][1] =
-				control->prev_samples[channel_nr][3];
-			control->prev_samples[channel_nr][2] =
-				samples[nr_samples - 2];
-			control->prev_samples[channel_nr][3] =
-				samples[nr_samples - 1];
+			control->prev_samples[channel_nr][0] = control->prev_samples[channel_nr][2];
+			control->prev_samples[channel_nr][1] = control->prev_samples[channel_nr][3];
+			control->prev_samples[channel_nr][2] = samples[nr_samples - 2];
+			control->prev_samples[channel_nr][3] = samples[nr_samples - 1];
 			break;
 		case 3:
-			control->prev_samples[channel_nr][0] =
-				control->prev_samples[channel_nr][3];
-			control->prev_samples[channel_nr][1] =
-				samples[nr_samples - 3];
-			control->prev_samples[channel_nr][2] =
-				samples[nr_samples - 2];
-			control->prev_samples[channel_nr][3] =
-				samples[nr_samples - 1];
+			control->prev_samples[channel_nr][0] = control->prev_samples[channel_nr][3];
+			control->prev_samples[channel_nr][1] = samples[nr_samples - 3];
+			control->prev_samples[channel_nr][2] = samples[nr_samples - 2];
+			control->prev_samples[channel_nr][3] = samples[nr_samples - 1];
 			break;
 		default:
-			control->prev_samples[channel_nr][0] =
-				samples[nr_samples - 4];
-			control->prev_samples[channel_nr][1] =
-				samples[nr_samples - 3];
-			control->prev_samples[channel_nr][2] =
-				samples[nr_samples - 2];
-			control->prev_samples[channel_nr][3] =
-				samples[nr_samples - 1];
+			control->prev_samples[channel_nr][0] = samples[nr_samples - 4];
+			control->prev_samples[channel_nr][1] = samples[nr_samples - 3];
+			control->prev_samples[channel_nr][2] = samples[nr_samples - 2];
+			control->prev_samples[channel_nr][3] = samples[nr_samples - 1];
 		}
 
 		control->peak[channel_nr] = r;
@@ -258,8 +216,7 @@ void AudioOutputControl::OBSOutputAudio(void *param, size_t mix_idx,
 	float input_peak[MAX_AUDIO_CHANNELS];
 
 	for (channel_nr = 0; channel_nr < MAX_AUDIO_CHANNELS; channel_nr++) {
-		magnitude[channel_nr] =
-			mul_to_db(control->magnitude[channel_nr]);
+		magnitude[channel_nr] = mul_to_db(control->magnitude[channel_nr]);
 		peak[channel_nr] = mul_to_db(control->peak[channel_nr]);
 
 		/* The input-peak is NOT adjusted with volume, so that the user
@@ -283,17 +240,14 @@ void AudioOutputControl::OBSOutputAudio(void *param, size_t mix_idx,
 	while (d != control->audioDevices.end()) {
 		bool muted = false;
 		for (int column = 1; column < columns; column++) {
-			auto *item = control->mainLayout->itemAtPosition(
-				control->sliderRow, column);
+			auto *item = control->mainLayout->itemAtPosition(control->sliderRow, column);
 			if (!item)
 				continue;
 			if (item->widget()->objectName() == d.key()) {
-				item = control->mainLayout->itemAtPosition(
-					control->muteRow, column);
+				item = control->mainLayout->itemAtPosition(control->muteRow, column);
 				if (!item)
 					continue;
-				auto *mute = reinterpret_cast<QCheckBox *>(
-					item->widget());
+				auto *mute = reinterpret_cast<QCheckBox *>(item->widget());
 				if (mute->isChecked())
 					muted = true;
 				break;
@@ -328,8 +282,7 @@ void AudioOutputControl::LockVolumeControl(bool lock)
 void AudioOutputControl::SliderChanged(int vol)
 {
 	QWidget *w = reinterpret_cast<QWidget *>(sender());
-	audio_monitor_set_volume(audioDevices[w->objectName()],
-				 (float)vol / 10000.0f);
+	audio_monitor_set_volume(audioDevices[w->objectName()], (float)vol / 10000.0f);
 }
 
 obs_data_t *AudioOutputControl::GetSettings()
@@ -338,8 +291,7 @@ obs_data_t *AudioOutputControl::GetSettings()
 	obs_data_array_t *devices = obs_data_array_create();
 	int columns = mainLayout->columnCount();
 	for (int column = 1; column < columns; column++) {
-		QLayoutItem *item =
-			mainLayout->itemAtPosition(sliderRow, column);
+		QLayoutItem *item = mainLayout->itemAtPosition(sliderRow, column);
 		if (!item)
 			continue;
 		auto *device = obs_data_create();
@@ -347,18 +299,11 @@ obs_data_t *AudioOutputControl::GetSettings()
 		obs_data_set_string(device, "id", QT_TO_UTF8(w->objectName()));
 		obs_data_set_bool(
 			device, "locked",
-			reinterpret_cast<QCheckBox *>(
-				mainLayout->itemAtPosition(lockRow, column)
-					->widget())
-				->isChecked());
+			reinterpret_cast<QCheckBox *>(mainLayout->itemAtPosition(lockRow, column)->widget())->isChecked());
 		obs_data_set_bool(
 			device, "muted",
-			reinterpret_cast<QCheckBox *>(
-				mainLayout->itemAtPosition(muteRow, column)
-					->widget())
-				->isChecked());
-		obs_data_set_double(device, "volume",
-				    (double)w->value() / 100.0);
+			reinterpret_cast<QCheckBox *>(mainLayout->itemAtPosition(muteRow, column)->widget())->isChecked());
+		obs_data_set_double(device, "volume", (double)w->value() / 100.0);
 		obs_data_set_string(device, "name", QT_TO_UTF8(w->toolTip()));
 		obs_data_array_push_back(devices, device);
 		obs_data_release(device);
@@ -380,8 +325,7 @@ void AudioOutputControl::AddDevice(QString device_id, QString device_name)
 {
 	auto it = audioDevices.find(device_id);
 	if (it == audioDevices.end()) {
-		audio_monitor *monitor = audio_monitor_create(
-			QT_TO_UTF8(device_id), QT_TO_UTF8(device_name), 0);
+		audio_monitor *monitor = audio_monitor_create(QT_TO_UTF8(device_id), QT_TO_UTF8(device_name), 0);
 		audio_monitor_set_volume(monitor, 1.0f);
 		audio_monitor_start(monitor);
 		audioDevices[device_id] = monitor;
@@ -411,9 +355,7 @@ void AudioOutputControl::AddDevice(QString device_id, QString device_name)
 	}
 }
 
-void AudioOutputControl::addDeviceColumn(int column, QString device_id,
-					 QString deviceName, float volume,
-					 bool muted, bool lock)
+void AudioOutputControl::addDeviceColumn(int column, QString device_id, QString deviceName, float volume, bool muted, bool lock)
 {
 
 	auto *locked = new LockedCheckBox();
@@ -421,8 +363,7 @@ void AudioOutputControl::addDeviceColumn(int column, QString device_id,
 	locked->setFixedSize(16, 16);
 	locked->setStyleSheet("background: none");
 	locked->setChecked(lock);
-	connect(locked, &QCheckBox::stateChanged, this,
-		&AudioOutputControl::LockVolumeControl, Qt::DirectConnection);
+	connect(locked, &QCheckBox::stateChanged, this, &AudioOutputControl::LockVolumeControl, Qt::DirectConnection);
 
 	auto *slider = new SliderIgnoreScroll();
 	slider->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
@@ -433,8 +374,7 @@ void AudioOutputControl::addDeviceColumn(int column, QString device_id,
 	slider->setValue(volume * 100.0f);
 	slider->setEnabled(!lock);
 
-	connect(slider, SIGNAL(valueChanged(int)), this,
-		SLOT(SliderChanged(int)));
+	connect(slider, SIGNAL(valueChanged(int)), this, SLOT(SliderChanged(int)));
 
 	auto *mute = new MuteCheckBox();
 	mute->setChecked(muted);
@@ -456,8 +396,7 @@ void AudioOutputControl::RemoveDevice(QString device_id)
 	const auto columns = mainLayout->columnCount();
 	auto found = false;
 	for (auto column = 1; column < columns; column++) {
-		auto *item_slider =
-			mainLayout->itemAtPosition(sliderRow, column);
+		auto *item_slider = mainLayout->itemAtPosition(sliderRow, column);
 		if (!item_slider)
 			continue;
 		auto *widget = item_slider->widget();
@@ -465,8 +404,7 @@ void AudioOutputControl::RemoveDevice(QString device_id)
 			found = true;
 			const auto rows = mainLayout->rowCount();
 			for (auto row = 0; row < rows; row++) {
-				auto *item =
-					mainLayout->itemAtPosition(row, column);
+				auto *item = mainLayout->itemAtPosition(row, column);
 				if (item) {
 					auto *w = item->widget();
 					mainLayout->removeItem(item);
@@ -477,13 +415,10 @@ void AudioOutputControl::RemoveDevice(QString device_id)
 		} else if (found) {
 			const auto rows = mainLayout->rowCount();
 			for (auto row = 0; row < rows; row++) {
-				auto *item =
-					mainLayout->itemAtPosition(row, column);
+				auto *item = mainLayout->itemAtPosition(row, column);
 				if (item) {
 					mainLayout->removeItem(item);
-					mainLayout->addItem(item, row,
-							    column - 1, 1, 1,
-							    Qt::AlignHCenter);
+					mainLayout->addItem(item, row, column - 1, 1, 1, Qt::AlignHCenter);
 				}
 			}
 		}

@@ -27,9 +27,7 @@ private:
 	bool changing_output_volume = false;
 	bool changing_monitor_volume = false;
 
-	static void OBSVolumeLevel(void *data,
-				   const float magnitude[MAX_AUDIO_CHANNELS],
-				   const float peak[MAX_AUDIO_CHANNELS],
+	static void OBSVolumeLevel(void *data, const float magnitude[MAX_AUDIO_CHANNELS], const float peak[MAX_AUDIO_CHANNELS],
 				   const float inputPeak[MAX_AUDIO_CHANNELS]);
 	static void OBSVolume(void *data, calldata_t *calldata);
 	static void OBSMute(void *data, calldata_t *calldata);
@@ -46,8 +44,7 @@ private slots:
 	void SetOutputVolume(double volume);
 	void SetMute(bool muted);
 	void RenameFilter(QString prev_name, QString new_name);
-	void FilterUpdated(QString name, double volume, bool locked,
-			   bool custom_color, QColor color);
+	void FilterUpdated(QString name, double volume, bool locked, bool custom_color, QColor color);
 	void FilterEnable(QString name, bool enabled);
 signals:
 

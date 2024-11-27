@@ -8,7 +8,8 @@ LockedCheckBox::LockedCheckBox()
 	setProperty("class", "indicator-lock");
 }
 
-LockedCheckBox::LockedCheckBox(QWidget *parent) : QCheckBox(parent) {
+LockedCheckBox::LockedCheckBox(QWidget *parent) : QCheckBox(parent)
+{
 	setProperty("lockCheckBox", true);
 	setProperty("class", "indicator-lock");
 }
@@ -30,9 +31,7 @@ SliderIgnoreScroll::SliderIgnoreScroll(QWidget *parent) : QSlider(parent)
 	setFocusPolicy(Qt::StrongFocus);
 }
 
-SliderIgnoreScroll::SliderIgnoreScroll(Qt::Orientation orientation,
-				       QWidget *parent)
-	: QSlider(parent)
+SliderIgnoreScroll::SliderIgnoreScroll(Qt::Orientation orientation, QWidget *parent) : QSlider(parent)
 {
 	setFocusPolicy(Qt::StrongFocus);
 	setOrientation(orientation);

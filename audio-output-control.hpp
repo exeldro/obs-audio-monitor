@@ -22,16 +22,16 @@ private:
 	int track;
 	VolumeMeter *volMeter;
 	QGridLayout *mainLayout;
-	QMap<QString, audio_monitor*> audioDevices;
+	QMap<QString, audio_monitor *> audioDevices;
 
 	float prev_samples[MAX_AUDIO_CHANNELS][4];
 	float magnitude[MAX_AUDIO_CHANNELS];
 	float peak[MAX_AUDIO_CHANNELS];
 
-	static void OBSOutputAudio(void *param, size_t mix_idx,
-	                           struct audio_data *data);
+	static void OBSOutputAudio(void *param, size_t mix_idx, struct audio_data *data);
 
-	void addDeviceColumn(int column, QString device_id, QString deviceName, float volume = 100.0f, bool mute = false, bool lock = false);
+	void addDeviceColumn(int column, QString device_id, QString deviceName, float volume = 100.0f, bool mute = false,
+			     bool lock = false);
 
 private slots:
 	void LockVolumeControl(bool lock);
@@ -39,7 +39,7 @@ private slots:
 signals:
 
 public:
-	explicit AudioOutputControl(int track, obs_data_t * settings = nullptr);
+	explicit AudioOutputControl(int track, obs_data_t *settings = nullptr);
 	~AudioOutputControl();
 
 	obs_data_t *GetSettings();
@@ -49,5 +49,4 @@ public:
 	//void AddDevice(QString deviceId, QString deviceName);
 	//void RemoveDevice(QString deviceId);
 	//bool HasSliders();
-
 };

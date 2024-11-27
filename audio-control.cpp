@@ -6,9 +6,7 @@
 
 #include "obs-module.h"
 
-AudioControl::AudioControl(OBSWeakSource source_)
-	: source(std::move(source_)),
-	  obs_volmeter(obs_volmeter_create(OBS_FADER_LOG))
+AudioControl::AudioControl(OBSWeakSource source_) : source(std::move(source_)), obs_volmeter(obs_volmeter_create(OBS_FADER_LOG))
 {
 	obs_source_t *s = obs_weak_source_get_source(source);
 	obs_volmeter_attach_source(obs_volmeter, s);
@@ -34,36 +32,21 @@ AudioControl::~AudioControl()
 {
 	obs_source_t *s = obs_weak_source_get_source(source);
 	if (s) {
-		signal_handler_disconnect(obs_source_get_signal_handler(s),
-					  "mute", OBSMute, this);
-		signal_handler_disconnect(obs_source_get_signal_handler(s),
-					  "volume", OBSVolume, this);
+		signal_handler_disconnect(obs_source_get_signal_handler(s), "mute", OBSMute, this);
+		signal_handler_disconnect(obs_source_get_signal_handler(s), "volume", OBSVolume, this);
 		int columns = mainLayout->columnCount();
 		for (int column = 2; column < columns; column++) {
-			QLayoutItem *item =
-				mainLayout->itemAtPosition(1, column);
+			QLayoutItem *item = mainLayout->itemAtPosition(1, column);
 			if (item) {
-				QString filterName =
-					item->widget()->objectName();
-				obs_source_t *filter =
-					obs_source_get_filter_by_name(
-						s, QT_TO_UTF8(filterName));
+				QString filterName = item->widget()->objectName();
+				obs_source_t *filter = obs_source_get_filter_by_name(s, QT_TO_UTF8(filterName));
 				if (filter) {
-					signal_handler_disconnect(
-						obs_source_get_signal_handler(
-							filter),
-						"rename", OBSFilterRename,
-						this);
-					signal_handler_disconnect(
-						obs_source_get_signal_handler(
-							filter),
-						"updated", OBSFilterUpdated,
-						this);
-					signal_handler_disconnect(
-						obs_source_get_signal_handler(
-							filter),
-						"enable", OBSFilterEnable,
-						this);
+					signal_handler_disconnect(obs_source_get_signal_handler(filter), "rename", OBSFilterRename,
+								  this);
+					signal_handler_disconnect(obs_source_get_signal_handler(filter), "updated",
+								  OBSFilterUpdated, this);
+					signal_handler_disconnect(obs_source_get_signal_handler(filter), "enable", OBSFilterEnable,
+								  this);
 					obs_source_release(filter);
 				}
 			}
@@ -75,9 +58,7 @@ AudioControl::~AudioControl()
 	obs_weak_source_release(source);
 }
 
-void AudioControl::OBSVolumeLevel(void *data,
-				  const float magnitude[MAX_AUDIO_CHANNELS],
-				  const float peak[MAX_AUDIO_CHANNELS],
+void AudioControl::OBSVolumeLevel(void *data, const float magnitude[MAX_AUDIO_CHANNELS], const float peak[MAX_AUDIO_CHANNELS],
 				  const float inputPeak[MAX_AUDIO_CHANNELS])
 {
 	AudioControl *audioControl = static_cast<AudioControl *>(data);
@@ -102,22 +83,16 @@ void AudioControl::LockVolumeControl(bool lock)
 			if (!s)
 				return;
 			if (column == 1) {
-				obs_data_t *settings =
-					obs_source_get_private_settings(s);
-				obs_data_set_bool(settings, "volume_locked",
-						  lock);
+				obs_data_t *settings = obs_source_get_private_settings(s);
+				obs_data_set_bool(settings, "volume_locked", lock);
 				obs_data_release(settings);
 			} else {
 				item = mainLayout->itemAtPosition(1, column);
-				QString filterName =
-					item->widget()->objectName();
-				obs_source_t *f = obs_source_get_filter_by_name(
-					s, QT_TO_UTF8(filterName));
+				QString filterName = item->widget()->objectName();
+				obs_source_t *f = obs_source_get_filter_by_name(s, QT_TO_UTF8(filterName));
 				if (f) {
-					obs_data_t *settings =
-						obs_source_get_settings(f);
-					obs_data_set_bool(settings, "locked",
-							  lock);
+					obs_data_t *settings = obs_source_get_settings(f);
+					obs_data_set_bool(settings, "locked", lock);
 					obs_data_release(settings);
 					obs_source_release(f);
 				}
@@ -147,8 +122,7 @@ void AudioControl::MuteVolumeControl(bool mute)
 				obs_source_release(s);
 				return;
 			}
-			obs_source_t *f = obs_source_get_filter_by_name(
-				s, QT_TO_UTF8(item->widget()->objectName()));
+			obs_source_t *f = obs_source_get_filter_by_name(s, QT_TO_UTF8(item->widget()->objectName()));
 			obs_source_release(s);
 			if (!f)
 				return;
@@ -172,8 +146,7 @@ void AudioControl::ShowSliderNames(bool show)
 	if (show) {
 		for (int column = 1; column < columns; column++) {
 
-			QLayoutItem *item =
-				mainLayout->itemAtPosition(sliderRow, column);
+			QLayoutItem *item = mainLayout->itemAtPosition(sliderRow, column);
 			if (!item)
 				continue;
 			QString name = item->widget()->objectName();
@@ -191,15 +164,13 @@ void AudioControl::ShowSliderNames(bool show)
 				nameLabel->setFont(font);
 				nameLabel->setAlignment(Qt::AlignCenter);
 
-				mainLayout->addWidget(nameLabel, nameRow,
-						      column);
+				mainLayout->addWidget(nameLabel, nameRow, column);
 			}
 		}
 	} else {
 		for (int column = 1; column < columns; column++) {
 
-			QLayoutItem *item =
-				mainLayout->itemAtPosition(nameRow, column);
+			QLayoutItem *item = mainLayout->itemAtPosition(nameRow, column);
 			if (!item)
 				continue;
 			auto *w = item->widget();
@@ -231,18 +202,15 @@ void AudioControl::ShowOutputSlider(bool output)
 		obs_data_release(settings);
 
 		auto *locked = new LockedCheckBox();
-		locked->setSizePolicy(QSizePolicy::Maximum,
-				      QSizePolicy::Maximum);
+		locked->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Maximum);
 		locked->setFixedSize(16, 16);
 		locked->setChecked(lock);
 		locked->setStyleSheet("background: none");
 
-		connect(locked, &QCheckBox::stateChanged, this,
-			&AudioControl::LockVolumeControl, Qt::DirectConnection);
+		connect(locked, &QCheckBox::stateChanged, this, &AudioControl::LockVolumeControl, Qt::DirectConnection);
 
 		auto *slider = new SliderIgnoreScroll();
-		slider->setSizePolicy(QSizePolicy::Preferred,
-				      QSizePolicy::Expanding);
+		slider->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
 		slider->setEnabled(!lock);
 		slider->setMinimum(0);
 		slider->setMaximum(10000);
@@ -255,24 +223,19 @@ void AudioControl::ShowOutputSlider(bool output)
 		else if (db <= -96.0f)
 			def = 0.0f;
 		else
-			def = (-log10f(-db + LOG_OFFSET_DB) - LOG_RANGE_VAL) /
-			      (LOG_OFFSET_VAL - LOG_RANGE_VAL);
+			def = (-log10f(-db + LOG_OFFSET_DB) - LOG_RANGE_VAL) / (LOG_OFFSET_VAL - LOG_RANGE_VAL);
 		slider->setValue(def * 10000.0f);
 
-		connect(slider, SIGNAL(valueChanged(int)), this,
-			SLOT(SliderChanged(int)));
+		connect(slider, SIGNAL(valueChanged(int)), this, SLOT(SliderChanged(int)));
 
 		auto *mute = new MuteCheckBox();
 		mute->setEnabled(!lock);
 		mute->setChecked(obs_source_muted(s));
 
-		connect(mute, &QCheckBox::stateChanged, this,
-			&AudioControl::MuteVolumeControl, Qt::DirectConnection);
+		connect(mute, &QCheckBox::stateChanged, this, &AudioControl::MuteVolumeControl, Qt::DirectConnection);
 
-		signal_handler_connect(obs_source_get_signal_handler(s), "mute",
-				       OBSMute, this);
-		signal_handler_connect(obs_source_get_signal_handler(s),
-				       "volume", OBSVolume, this);
+		signal_handler_connect(obs_source_get_signal_handler(s), "mute", OBSMute, this);
+		signal_handler_connect(obs_source_get_signal_handler(s), "volume", OBSVolume, this);
 		obs_source_release(s);
 
 		mainLayout->addWidget(locked, 0, 1, Qt::AlignHCenter);
@@ -284,13 +247,11 @@ void AudioControl::ShowOutputSlider(bool output)
 			font.setPointSize(font.pointSize() - 1);
 			nameLabel->setWordWrap(true);
 
-			nameLabel->setText(
-				QT_UTF8(obs_module_text("OutputShort")));
+			nameLabel->setText(QT_UTF8(obs_module_text("OutputShort")));
 			nameLabel->setFont(font);
 			nameLabel->setAlignment(Qt::AlignCenter);
 
-			mainLayout->addWidget(nameLabel, nameRow, 1,
-					      Qt::AlignHCenter);
+			mainLayout->addWidget(nameLabel, nameRow, 1, Qt::AlignHCenter);
 		}
 	} else {
 		int rows = mainLayout->rowCount();
@@ -305,10 +266,8 @@ void AudioControl::ShowOutputSlider(bool output)
 		obs_source_t *s = obs_weak_source_get_source(source);
 		if (!s)
 			return;
-		signal_handler_disconnect(obs_source_get_signal_handler(s),
-					  "mute", OBSMute, this);
-		signal_handler_disconnect(obs_source_get_signal_handler(s),
-					  "volume", OBSVolume, this);
+		signal_handler_disconnect(obs_source_get_signal_handler(s), "mute", OBSMute, this);
+		signal_handler_disconnect(obs_source_get_signal_handler(s), "volume", OBSVolume, this);
 		obs_source_release(s);
 	}
 }
@@ -320,8 +279,7 @@ void AudioControl::OBSVolume(void *data, calldata_t *call_data)
 	double volume;
 	calldata_get_float(call_data, "volume", &volume);
 	AudioControl *audioControl = static_cast<AudioControl *>(data);
-	QMetaObject::invokeMethod(audioControl, "SetOutputVolume",
-				  Qt::QueuedConnection, Q_ARG(double, volume));
+	QMetaObject::invokeMethod(audioControl, "SetOutputVolume", Qt::QueuedConnection, Q_ARG(double, volume));
 }
 
 void AudioControl::SetOutputVolume(double volume)
@@ -337,8 +295,7 @@ void AudioControl::SetOutputVolume(double volume)
 	else if (db <= -96.0f)
 		def = 0.0f;
 	else
-		def = (-log10f(-db + LOG_OFFSET_DB) - LOG_RANGE_VAL) /
-		      (LOG_OFFSET_VAL - LOG_RANGE_VAL);
+		def = (-log10f(-db + LOG_OFFSET_DB) - LOG_RANGE_VAL) / (LOG_OFFSET_VAL - LOG_RANGE_VAL);
 
 	int val = def * 10000.0;
 	changing_output_volume = true;
@@ -352,8 +309,7 @@ void AudioControl::OBSMute(void *data, calldata_t *call_data)
 	calldata_get_ptr(call_data, "source", &source);
 	bool muted = calldata_bool(call_data, "muted");
 	AudioControl *audioControl = static_cast<AudioControl *>(data);
-	QMetaObject::invokeMethod(audioControl, "SetMute", Qt::QueuedConnection,
-				  Q_ARG(bool, muted));
+	QMetaObject::invokeMethod(audioControl, "SetMute", Qt::QueuedConnection, Q_ARG(bool, muted));
 }
 
 void AudioControl::SetMute(bool muted)
@@ -372,9 +328,7 @@ void AudioControl::OBSFilterRename(void *data, calldata_t *call_data)
 	const char *prev_name = calldata_string(call_data, "prev_name");
 	const char *new_name = calldata_string(call_data, "new_name");
 	AudioControl *audioControl = static_cast<AudioControl *>(data);
-	QMetaObject::invokeMethod(audioControl, "RenameFilter",
-				  Qt::QueuedConnection,
-				  Q_ARG(QString, QT_UTF8(prev_name)),
+	QMetaObject::invokeMethod(audioControl, "RenameFilter", Qt::QueuedConnection, Q_ARG(QString, QT_UTF8(prev_name)),
 				  Q_ARG(QString, QT_UTF8(new_name)));
 }
 
@@ -385,9 +339,7 @@ void AudioControl::OBSFilterEnable(void *data, calldata_t *call_data)
 	bool enabled = calldata_bool(call_data, "enabled");
 	QString filterName = QT_UTF8(obs_source_get_name(filter));
 	AudioControl *audioControl = static_cast<AudioControl *>(data);
-	QMetaObject::invokeMethod(audioControl, "FilterEnable",
-				  Qt::QueuedConnection,
-				  Q_ARG(QString, filterName),
+	QMetaObject::invokeMethod(audioControl, "FilterEnable", Qt::QueuedConnection, Q_ARG(QString, filterName),
 				  Q_ARG(bool, enabled));
 }
 
@@ -395,15 +347,13 @@ void AudioControl::FilterEnable(QString name, bool enabled)
 {
 	int columns = mainLayout->columnCount();
 	for (int column = 2; column < columns; column++) {
-		QLayoutItem *item =
-			mainLayout->itemAtPosition(sliderRow, column);
+		QLayoutItem *item = mainLayout->itemAtPosition(sliderRow, column);
 		if (!item)
 			continue;
 		auto *l = static_cast<QLabel *>(item->widget());
 		if (l->objectName() == name) {
 			item = mainLayout->itemAtPosition(muteRow, column);
-			QCheckBox *checkbox =
-				reinterpret_cast<QCheckBox *>(item->widget());
+			QCheckBox *checkbox = reinterpret_cast<QCheckBox *>(item->widget());
 			if (checkbox->isChecked() == enabled)
 				checkbox->setChecked(!enabled);
 		}
@@ -420,24 +370,18 @@ void AudioControl::OBSFilterUpdated(void *data, calldata_t *call_data)
 	bool locked = obs_data_get_bool(settings, "locked");
 	bool custom_color = obs_data_get_bool(settings, "custom_color");
 	auto color = obs_data_get_int(settings, "color");
-	QColor c =
-		QColor(color & 0xff, (color >> 8) & 0xff, (color >> 16) & 0xff);
+	QColor c = QColor(color & 0xff, (color >> 8) & 0xff, (color >> 16) & 0xff);
 	obs_data_release(settings);
 	AudioControl *audioControl = static_cast<AudioControl *>(data);
-	QMetaObject::invokeMethod(audioControl, "FilterUpdated",
-				  Qt::QueuedConnection,
-				  Q_ARG(QString, filterName),
-				  Q_ARG(double, volume), Q_ARG(bool, locked),
-				  Q_ARG(bool, custom_color), Q_ARG(QColor, c));
+	QMetaObject::invokeMethod(audioControl, "FilterUpdated", Qt::QueuedConnection, Q_ARG(QString, filterName),
+				  Q_ARG(double, volume), Q_ARG(bool, locked), Q_ARG(bool, custom_color), Q_ARG(QColor, c));
 }
 
-void AudioControl::FilterUpdated(QString name, double volume, bool locked,
-				 bool custom_color, QColor color)
+void AudioControl::FilterUpdated(QString name, double volume, bool locked, bool custom_color, QColor color)
 {
 	int columns = mainLayout->columnCount();
 	for (int column = 2; column < columns; column++) {
-		QLayoutItem *item =
-			mainLayout->itemAtPosition(sliderRow, column);
+		QLayoutItem *item = mainLayout->itemAtPosition(sliderRow, column);
 		if (!item)
 			continue;
 		auto *l = static_cast<QLabel *>(item->widget());
@@ -449,15 +393,11 @@ void AudioControl::FilterUpdated(QString name, double volume, bool locked,
 				slider->setValue(def);
 				changing_monitor_volume = false;
 			}
-			slider->setStyleSheet(
-				custom_color
-					? QString("QSlider::handle {background-color: %1;}")
-						  .arg(color.name())
-					: "");
+			slider->setStyleSheet(custom_color ? QString("QSlider::handle {background-color: %1;}").arg(color.name())
+							   : "");
 
 			item = mainLayout->itemAtPosition(lockRow, column);
-			QCheckBox *checkbox =
-				reinterpret_cast<QCheckBox *>(item->widget());
+			QCheckBox *checkbox = reinterpret_cast<QCheckBox *>(item->widget());
 			if (checkbox->isChecked() != locked)
 				checkbox->setChecked(locked);
 		}
@@ -468,8 +408,7 @@ void AudioControl::RenameFilter(QString prev_name, QString new_name)
 {
 	int columns = mainLayout->columnCount();
 	for (int column = 2; column < columns; column++) {
-		QLayoutItem *item =
-			mainLayout->itemAtPosition(sliderRow, column);
+		QLayoutItem *item = mainLayout->itemAtPosition(sliderRow, column);
 		if (!item)
 			continue;
 		auto *w = item->widget();
@@ -481,8 +420,7 @@ void AudioControl::RenameFilter(QString prev_name, QString new_name)
 
 			item = mainLayout->itemAtPosition(nameRow, column);
 			if (item) {
-				auto *l =
-					dynamic_cast<QLabel *>(item->widget());
+				auto *l = dynamic_cast<QLabel *>(item->widget());
 				l->setText(new_name);
 			}
 		}
@@ -493,18 +431,11 @@ void AudioControl::RemoveFilter(QString filterName)
 {
 	obs_source_t *s = obs_weak_source_get_source(source);
 	if (s) {
-		obs_source_t *filter = obs_source_get_filter_by_name(
-			s, QT_TO_UTF8(filterName));
+		obs_source_t *filter = obs_source_get_filter_by_name(s, QT_TO_UTF8(filterName));
 		if (filter) {
-			signal_handler_disconnect(
-				obs_source_get_signal_handler(filter), "rename",
-				OBSFilterRename, this);
-			signal_handler_disconnect(
-				obs_source_get_signal_handler(filter),
-				"updated", OBSFilterUpdated, this);
-			signal_handler_disconnect(
-				obs_source_get_signal_handler(filter), "enable",
-				OBSFilterEnable, this);
+			signal_handler_disconnect(obs_source_get_signal_handler(filter), "rename", OBSFilterRename, this);
+			signal_handler_disconnect(obs_source_get_signal_handler(filter), "updated", OBSFilterUpdated, this);
+			signal_handler_disconnect(obs_source_get_signal_handler(filter), "enable", OBSFilterEnable, this);
 			obs_source_release(filter);
 		}
 		obs_source_release(s);
@@ -520,8 +451,7 @@ void AudioControl::RemoveFilter(QString filterName)
 			found = true;
 			int rows = mainLayout->rowCount();
 			for (int row = 0; row < rows; row++) {
-				auto *item =
-					mainLayout->itemAtPosition(row, column);
+				auto *item = mainLayout->itemAtPosition(row, column);
 				if (item) {
 					auto *w = item->widget();
 					mainLayout->removeItem(item);
@@ -531,12 +461,10 @@ void AudioControl::RemoveFilter(QString filterName)
 		} else if (found) {
 			int rows = mainLayout->rowCount();
 			for (int row = 0; row < rows; row++) {
-				auto *item =
-					mainLayout->itemAtPosition(row, column);
+				auto *item = mainLayout->itemAtPosition(row, column);
 				if (item) {
 					mainLayout->removeItem(item);
-					mainLayout->addItem(item, row,
-							    column - 1);
+					mainLayout->addItem(item, row, column - 1);
 				}
 			}
 		}
@@ -583,12 +511,9 @@ void AudioControl::AddFilter(obs_source_t *filter)
 
 void AudioControl::addFilterColumn(int column, obs_source_t *filter)
 {
-	signal_handler_connect(obs_source_get_signal_handler(filter), "rename",
-			       OBSFilterRename, this);
-	signal_handler_connect(obs_source_get_signal_handler(filter), "updated",
-			       OBSFilterUpdated, this);
-	signal_handler_connect(obs_source_get_signal_handler(filter), "enable",
-			       OBSFilterEnable, this);
+	signal_handler_connect(obs_source_get_signal_handler(filter), "rename", OBSFilterRename, this);
+	signal_handler_connect(obs_source_get_signal_handler(filter), "updated", OBSFilterUpdated, this);
+	signal_handler_connect(obs_source_get_signal_handler(filter), "enable", OBSFilterEnable, this);
 
 	obs_data_t *settings = obs_source_get_settings(filter);
 	bool lock = obs_data_get_bool(settings, "locked");
@@ -598,8 +523,7 @@ void AudioControl::addFilterColumn(int column, obs_source_t *filter)
 	locked->setChecked(lock);
 	locked->setStyleSheet("background: none");
 
-	connect(locked, &QCheckBox::stateChanged, this,
-		&AudioControl::LockVolumeControl, Qt::DirectConnection);
+	connect(locked, &QCheckBox::stateChanged, this, &AudioControl::LockVolumeControl, Qt::DirectConnection);
 
 	QString filterName = QT_UTF8(obs_source_get_name(filter));
 	auto *slider = new SliderIgnoreScroll();
@@ -616,21 +540,16 @@ void AudioControl::addFilterColumn(int column, obs_source_t *filter)
 
 	if (obs_data_get_bool(settings, "custom_color")) {
 		auto color = obs_data_get_int(settings, "color");
-		QColor c = QColor(color & 0xff, (color >> 8) & 0xff,
-				  (color >> 16) & 0xff);
-		slider->setStyleSheet(
-			QString("QSlider::handle {background-color: %1;}")
-				.arg(c.name()));
+		QColor c = QColor(color & 0xff, (color >> 8) & 0xff, (color >> 16) & 0xff);
+		slider->setStyleSheet(QString("QSlider::handle {background-color: %1;}").arg(c.name()));
 	}
-	connect(slider, SIGNAL(valueChanged(int)), this,
-		SLOT(SliderChanged(int)));
+	connect(slider, SIGNAL(valueChanged(int)), this, SLOT(SliderChanged(int)));
 
 	auto *mute = new MuteCheckBox();
 	mute->setEnabled(!lock);
 	mute->setChecked(!obs_source_enabled(filter));
 
-	connect(mute, &QCheckBox::stateChanged, this,
-		&AudioControl::MuteVolumeControl, Qt::DirectConnection);
+	connect(mute, &QCheckBox::stateChanged, this, &AudioControl::MuteVolumeControl, Qt::DirectConnection);
 
 	obs_data_release(settings);
 
@@ -647,8 +566,7 @@ void AudioControl::addFilterColumn(int column, obs_source_t *filter)
 		nameLabel->setFont(font);
 		nameLabel->setAlignment(Qt::AlignCenter);
 
-		mainLayout->addWidget(nameLabel, nameRow, column,
-				      Qt::AlignHCenter);
+		mainLayout->addWidget(nameLabel, nameRow, column, Qt::AlignHCenter);
 	}
 }
 
@@ -667,10 +585,7 @@ void AudioControl::SliderChanged(int vol)
 		else if (def <= 0.0f)
 			db = -INFINITY;
 		else
-			db = -(LOG_RANGE_DB + LOG_OFFSET_DB) *
-				     powf((LOG_RANGE_DB + LOG_OFFSET_DB) /
-						  LOG_OFFSET_DB,
-					  -def) +
+			db = -(LOG_RANGE_DB + LOG_OFFSET_DB) * powf((LOG_RANGE_DB + LOG_OFFSET_DB) / LOG_OFFSET_DB, -def) +
 			     LOG_OFFSET_DB;
 		const float mul = obs_db_to_mul(db);
 		obs_source_set_volume(s, mul);
@@ -681,8 +596,7 @@ void AudioControl::SliderChanged(int vol)
 		obs_source_release(s);
 		return;
 	}
-	obs_source_t *f = obs_source_get_filter_by_name(
-		s, w->objectName().toUtf8().constData());
+	obs_source_t *f = obs_source_get_filter_by_name(s, w->objectName().toUtf8().constData());
 	obs_source_release(s);
 	if (!f)
 		return;
