@@ -40,6 +40,8 @@ class VolumeMeter : public QWidget {
 	Q_PROPERTY(QColor magnitudeColor READ getMagnitudeColor WRITE setMagnitudeColor DESIGNABLE true)
 	Q_PROPERTY(QColor majorTickColor READ getMajorTickColor WRITE setMajorTickColor DESIGNABLE true)
 	Q_PROPERTY(QColor minorTickColor READ getMinorTickColor WRITE setMinorTickColor DESIGNABLE true)
+	Q_PROPERTY(int meterThickness READ getMeterThickness WRITE setMeterThickness DESIGNABLE true)
+	Q_PROPERTY(qreal meterFontScaling READ getMeterFontScaling WRITE setMeterFontScaling DESIGNABLE true)
 
 	// Levels are denoted in dBFS.
 	Q_PROPERTY(qreal minimumLevel READ getMinimumLevel WRITE setMinimumLevel DESIGNABLE true)
@@ -83,6 +85,8 @@ private:
 
 	QMutex dataMutex;
 
+	bool recalculateLayout = true;
+
 	uint64_t currentLastUpdateTime = 0;
 	float currentMagnitude[MAX_AUDIO_CHANNELS];
 	float currentPeak[MAX_AUDIO_CHANNELS];
@@ -116,6 +120,8 @@ private:
 	QColor magnitudeColor;
 	QColor majorTickColor;
 	QColor minorTickColor;
+	int meterThickness;
+	qreal meterFontScaling;
 	qreal minimumLevel;
 	qreal warningLevel;
 	qreal errorLevel;
@@ -172,6 +178,10 @@ public:
 	void setMajorTickColor(QColor c);
 	QColor getMinorTickColor() const;
 	void setMinorTickColor(QColor c);
+	int getMeterThickness() const;
+	void setMeterThickness(int v);
+	qreal getMeterFontScaling() const;
+	void setMeterFontScaling(qreal v);
 	qreal getMinimumLevel() const;
 	void setMinimumLevel(qreal v);
 	qreal getWarningLevel() const;

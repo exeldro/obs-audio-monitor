@@ -166,6 +166,29 @@ void VolumeMeter::setMinorTickColor(QColor c)
 	minorTickColor = std::move(c);
 }
 
+int VolumeMeter::getMeterThickness() const
+{
+	return meterThickness;
+}
+
+void VolumeMeter::setMeterThickness(int v)
+{
+	meterThickness = v;
+	recalculateLayout = true;
+}
+
+qreal VolumeMeter::getMeterFontScaling() const
+{
+	return meterFontScaling;
+}
+
+void VolumeMeter::setMeterFontScaling(qreal v)
+{
+	meterFontScaling = v;
+	recalculateLayout = true;
+}
+
+
 qreal VolumeMeter::getMinimumLevel() const
 {
 	return minimumLevel;
@@ -328,8 +351,8 @@ VolumeMeter::VolumeMeter(QWidget *parent, obs_volmeter_t *obs_volmeter) : QWidge
 
 	clipColor.setRgb(0xff, 0xff, 0xff);      // Bright white
 	magnitudeColor.setRgb(0x00, 0x00, 0x00); // Black
-	majorTickColor.setRgb(0xff, 0xff, 0xff); // Black
-	minorTickColor.setRgb(0xcc, 0xcc, 0xcc); // Black
+	majorTickColor.setRgb(0x00, 0x00, 0x00); // Black
+	minorTickColor.setRgb(0x32, 0x32, 0x32); // Dark gray
 	minimumLevel = -60.0;                    // -60 dB
 	warningLevel = -20.0;                    // -20 dB
 	errorLevel = -9.0;                       //  -9 dB
@@ -627,7 +650,7 @@ void VolumeMeter::paintHMeter(QPainter &painter, int x, int y, int width, int he
 				 m ? foregroundErrorColorDisabled : foregroundErrorColor);
 		painter.fillRect(peakPosition, y, maximumPosition - peakPosition, height,
 				 m ? backgroundErrorColorDisabled : backgroundErrorColor);
-	} else if (int(magnitude) != 0) {
+	} else {
 		if (!clipping) {
 			QTimer::singleShot(CLIP_FLASH_DURATION_MS, this, SLOT(ClipEnding()));
 			clipping = true;
