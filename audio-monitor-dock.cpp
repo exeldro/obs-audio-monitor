@@ -430,7 +430,6 @@ void AudioMonitorDock::RemoveAudioControl(const QString &sourceName)
 void AudioMonitorDock::RemoveAllSources()
 {
 	const int columns = mainLayout->columnCount();
-	int removed = 0;
 	for (int i = MAX_AUDIO_MIXES + 1; i < columns; i++) {
 		QLayoutItem *item = mainLayout->itemAtPosition(0, i);
 		if (item) {
@@ -439,7 +438,6 @@ void AudioMonitorDock::RemoveAllSources()
 				continue;
 
 			moveAudioControl(i, -1);
-			removed++;
 		}
 	}
 }
