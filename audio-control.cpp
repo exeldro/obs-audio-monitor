@@ -207,7 +207,11 @@ void AudioControl::ShowOutputSlider(bool output)
 		locked->setChecked(lock);
 		locked->setStyleSheet("background: none");
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
+		connect(locked, &QCheckBox::checkStateChanged, this, &AudioControl::LockVolumeControl, Qt::DirectConnection);
+#else
 		connect(locked, &QCheckBox::stateChanged, this, &AudioControl::LockVolumeControl, Qt::DirectConnection);
+#endif
 
 		auto *slider = new SliderIgnoreScroll();
 		slider->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
@@ -232,7 +236,11 @@ void AudioControl::ShowOutputSlider(bool output)
 		mute->setEnabled(!lock);
 		mute->setChecked(obs_source_muted(s));
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
+		connect(mute, &QCheckBox::checkStateChanged, this, &AudioControl::MuteVolumeControl, Qt::DirectConnection);
+#else
 		connect(mute, &QCheckBox::stateChanged, this, &AudioControl::MuteVolumeControl, Qt::DirectConnection);
+#endif
 
 		signal_handler_connect(obs_source_get_signal_handler(s), "mute", OBSMute, this);
 		signal_handler_connect(obs_source_get_signal_handler(s), "volume", OBSVolume, this);
@@ -523,7 +531,11 @@ void AudioControl::addFilterColumn(int column, obs_source_t *filter)
 	locked->setChecked(lock);
 	locked->setStyleSheet("background: none");
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
+	connect(locked, &QCheckBox::checkStateChanged, this, &AudioControl::LockVolumeControl, Qt::DirectConnection);
+#else
 	connect(locked, &QCheckBox::stateChanged, this, &AudioControl::LockVolumeControl, Qt::DirectConnection);
+#endif
 
 	QString filterName = QT_UTF8(obs_source_get_name(filter));
 	auto *slider = new SliderIgnoreScroll();
@@ -549,7 +561,11 @@ void AudioControl::addFilterColumn(int column, obs_source_t *filter)
 	mute->setEnabled(!lock);
 	mute->setChecked(!obs_source_enabled(filter));
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
+	connect(mute, &QCheckBox::checkStateChanged, this, &AudioControl::MuteVolumeControl, Qt::DirectConnection);
+#else
 	connect(mute, &QCheckBox::stateChanged, this, &AudioControl::MuteVolumeControl, Qt::DirectConnection);
+#endif
 
 	obs_data_release(settings);
 

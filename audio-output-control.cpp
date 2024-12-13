@@ -363,7 +363,11 @@ void AudioOutputControl::addDeviceColumn(int column, QString device_id, QString 
 	locked->setFixedSize(16, 16);
 	locked->setStyleSheet("background: none");
 	locked->setChecked(lock);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
+	connect(locked, &QCheckBox::checkStateChanged, this, &AudioOutputControl::LockVolumeControl, Qt::DirectConnection);
+#else
 	connect(locked, &QCheckBox::stateChanged, this, &AudioOutputControl::LockVolumeControl, Qt::DirectConnection);
+#endif
 
 	auto *slider = new SliderIgnoreScroll();
 	slider->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
