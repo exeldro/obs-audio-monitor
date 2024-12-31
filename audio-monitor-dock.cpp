@@ -212,6 +212,13 @@ void AudioMonitorDock::OBSSignal(void *data, const char *signal, calldata_t *cal
 			return;
 		QString sourceName = QT_UTF8(obs_source_get_name(source));
 		QMetaObject::invokeMethod(dock, "RemoveAudioControl", Qt::QueuedConnection, Q_ARG(QString, QString(sourceName)));
+	} else if (strcmp(signal, "source_audio_activate") == 0) {
+		if (dock->showOnlyActive && !obs_source_active(source))
+			return;
+		QMetaObject::invokeMethod(dock, "AddAudioSource", Qt::QueuedConnection, Q_ARG(OBSSource, OBSSource(source)));
+	} else if (strcmp(signal, "source_audio_deactivate") == 0) {
+		QString sourceName = QT_UTF8(obs_source_get_name(source));
+		QMetaObject::invokeMethod(dock, "RemoveAudioControl", Qt::QueuedConnection, Q_ARG(QString, QString(sourceName)));
 	}
 }
 
