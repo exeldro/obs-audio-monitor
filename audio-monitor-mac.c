@@ -35,6 +35,7 @@ struct audio_monitor {
     uint32_t channels;
 	audio_resampler_t *resampler;
 	float volume;
+	bool mono;
 	float balance;
 	pthread_mutex_t mutex;
     char *device_id;
@@ -225,9 +226,22 @@ void audio_monitor_audio(void *data, struct obs_audio_data *audio){
 		while (cur < end)
 			*(cur++) *= vol;
 	}
+	/* apply mono */
+	if (audio_monitor->mono && audio_monitor->channels > 1) {
+		for (uint32_t frame = 0; frame < resample_frames; frame++) {
+			float avg = 0.0f;
+			for (uint32_t channel = 0; channel < audio_monitor->channels; channel++) {
+				avg += ((float *)resample_data[0])[frame * audio_monitor->channels + channel];
+			}
+			avg /= (float)audio_monitor->channels;
+			for (uint32_t channel = 0; channel < audio_monitor->channels; channel++) {
+				((float *)resample_data[0])[frame * audio_monitor->channels + channel] = avg;
+			}
+		}
+	}
 	/* apply balance */
 	float bal = (audio_monitor->balance + 1.0f) / 2.0f;
-	if (!close_float(bal, 0.5f, EPSILON)) {
+	if (!close_float(bal, 0.5f, EPSILON) && audio_monitor->channels > 1) {
 			for (uint32_t frame = 0; frame < resample_frames; frame++) {
 				((float *)resample_data[0])[frame * audio_monitor->channels + 0] =
 					((float *)resample_data[0])[frame * audio_monitor->channels + 0] *
@@ -261,6 +275,12 @@ void audio_monitor_set_volume(struct audio_monitor *audio_monitor, float volume)
 	if (!audio_monitor)
 		return;
     audio_monitor->volume = volume;
+}
+
+void audio_monitor_set_mono(struct audio_monitor *audio_monitor, bool mono){
+	if (!audio_monitor)
+		return;
+	audio_monitor->mono = mono;
 }
 
 void audio_monitor_set_balance(struct audio_monitor *audio_monitor, float balance){

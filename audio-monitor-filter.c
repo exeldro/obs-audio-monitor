@@ -259,6 +259,7 @@ static void audio_monitor_update(void *data, obs_data_t *settings)
 	}
 
 	audio_monitor_set_volume(audio_monitor->monitor, mul);
+	audio_monitor_set_mono(audio_monitor->monitor, obs_data_get_bool(settings, "mono"));
 	audio_monitor_set_balance(audio_monitor->monitor, (float)obs_data_get_double(settings, "balance"));
 
 	struct calldata cd;
@@ -413,6 +414,7 @@ static obs_properties_t *audio_monitor_properties(void *data)
 	obs_property_float_set_suffix(p, "%");
 	obs_properties_add_bool(ppts, "locked", obs_module_text("Locked"));
 	obs_properties_add_bool(ppts, "linked", obs_module_text("Linked"));
+	obs_properties_add_bool(ppts, "mono", obs_module_text("Mono"));
 	obs_properties_add_float_slider(ppts, "balance", obs_module_text("Balance"), -1.0, 1.0, 0.01);
 	p = obs_properties_add_list(ppts, "mute", obs_module_text("Mute"), OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
 	obs_property_list_add_int(p, obs_module_text("Never"), MUTE_NEVER);
