@@ -329,7 +329,7 @@ void VolumeMeter::wheelEvent(QWheelEvent *event)
 VolumeMeter::VolumeMeter(QWidget *parent, obs_volmeter_t *obs_volmeter) : QWidget(parent), obs_volmeter(obs_volmeter)
 {
 	setAttribute(Qt::WA_OpaquePaintEvent, true);
-
+	setMinimumSize(displayNrAudioChannels * 4 + 14, 130);
 	// Use a font that can be rendered small.
 	tickFont = QFont("Arial");
 	tickFont.setPixelSize(7);
