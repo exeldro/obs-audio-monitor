@@ -28,6 +28,7 @@ struct audio_monitor {
 	uint32_t channels;
 	audio_resampler_t *resampler;
 	float volume;
+	float balance;
 	pthread_mutex_t mutex;
 	char *device_id;
 	char *source_name;
@@ -270,6 +271,46 @@ void audio_monitor_audio(void *data, struct obs_audio_data *audio)
 			}
 		}
 	}
+	float bal = (audio_monitor->balance + 1.0f) / 2.0f;
+	if (!close_float(bal, 0.5f, EPSILON)) {
+		if (audio_monitor->format == AUDIO_FORMAT_FLOAT) {
+			for (uint32_t frame = 0; frame < resample_frames; frame++) {
+				((float *)resample_data[0])[frame * audio_monitor->channels + 0] =
+					((float *)resample_data[0])[frame * audio_monitor->channels + 0] *
+					sinf((1.0f - bal) * (M_PI / 2.0f));
+				((float *)resample_data[0])[frame * audio_monitor->channels + 1] =
+					((float *)resample_data[0])[frame * audio_monitor->channels + 1] *
+					sinf(bal * (M_PI / 2.0f));
+			}
+		} else if (audio_monitor->format == AUDIO_FORMAT_32BIT) {
+			for (uint32_t frame = 0; frame < resample_frames; frame++) {
+				((int32_t *)resample_data[0])[frame * audio_monitor->channels + 0] =
+					(int32_t)((float)((int32_t *)resample_data[0])[frame * audio_monitor->channels + 0] *
+						  sinf((1.0f - bal) * (M_PI / 2.0f)));
+				((int32_t *)resample_data[0])[frame * audio_monitor->channels + 1] =
+					(int32_t)((float)((int32_t *)resample_data[0])[frame * audio_monitor->channels + 1] *
+						  sinf(bal * (M_PI / 2.0f)));
+			}
+		} else if (audio_monitor->format == AUDIO_FORMAT_16BIT) {
+			for (uint32_t frame = 0; frame < resample_frames; frame++) {
+				((int16_t *)resample_data[0])[frame * audio_monitor->channels + 0] =
+					(int16_t)((float)((int16_t *)resample_data[0])[frame * audio_monitor->channels + 0] *
+						  sinf((1.0f - bal) * (M_PI / 2.0f)));
+				((int16_t *)resample_data[0])[frame * audio_monitor->channels + 1] =
+					(int16_t)((float)((int16_t *)resample_data[0])[frame * audio_monitor->channels + 1] *
+						  sinf(bal * (M_PI / 2.0f)));
+			}
+		} else if (audio_monitor->format == AUDIO_FORMAT_U8BIT) {
+			for (uint32_t frame = 0; frame < resample_frames; frame++) {
+				((uint8_t *)resample_data[0])[frame * audio_monitor->channels + 0] =
+					(uint8_t)((float)((uint8_t *)resample_data[0])[frame * audio_monitor->channels + 0] *
+						  sinf((1.0f - bal) * (M_PI / 2.0f)));
+				((uint8_t *)resample_data[0])[frame * audio_monitor->channels + 1] =
+					(uint8_t)((float)((uint8_t *)resample_data[0])[frame * audio_monitor->channels + 1] *
+						  sinf(bal * (M_PI / 2.0f)));
+			}
+		}
+	}
 
 	if (audio_monitor->sock) {
 
@@ -349,6 +390,13 @@ void audio_monitor_set_volume(struct audio_monitor *audio_monitor, float volume)
 	if (!audio_monitor)
 		return;
 	audio_monitor->volume = volume;
+}
+
+void audio_monitor_set_balance(struct audio_monitor *audio_monitor, float balance)
+{
+	if (!audio_monitor)
+		return;
+	audio_monitor->balance = balance;
 }
 
 int resolvehelper(const char *hostname, int family, const char *service, struct sockaddr_storage *pAddr)

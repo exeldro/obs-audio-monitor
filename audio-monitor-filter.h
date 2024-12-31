@@ -8,6 +8,7 @@ void audio_monitor_stop(struct audio_monitor *audio_monitor);
 void audio_monitor_start(struct audio_monitor *audio_monitor);
 void audio_monitor_audio(void *data, struct obs_audio_data *audio);
 void audio_monitor_set_volume(struct audio_monitor *audio_monitor, float volume);
+void audio_monitor_set_balance(struct audio_monitor *audio_monitor, float balance);
 void audio_monitor_set_format(struct audio_monitor *audio_monitor, enum audio_format format);
 void audio_monitor_set_samples_per_sec(struct audio_monitor *audio_monitor, long long samples_per_sec);
 struct audio_monitor *audio_monitor_create(const char *device_id, const char *source_name, int port);

@@ -35,6 +35,7 @@ struct audio_monitor {
     uint32_t channels;
 	audio_resampler_t *resampler;
 	float volume;
+	float balance;
 	pthread_mutex_t mutex;
     char *device_id;
 };
@@ -215,13 +216,26 @@ void audio_monitor_audio(void *data, struct obs_audio_data *audio){
 		return;
 	}
 	/* apply volume */
-	if (!close_float(audio_monitor->volume, 1.0f, EPSILON)) {
+	float vol = audio_monitor->volume;
+	if (!close_float(vol, 1.0f, EPSILON)) {
 		register float *cur = (float *)resample_data[0];
 		register float *end =
 			cur + resample_frames * audio_monitor->channels;
 
 		while (cur < end)
-			*(cur++) *= audio_monitor->volume;
+			*(cur++) *= vol;
+	}
+	/* apply balance */
+	float bal = (audio_monitor->balance + 1.0f) / 2.0f;
+	if (!close_float(bal, 0.5f, EPSILON)) {
+			for (uint32_t frame = 0; frame < resample_frames; frame++) {
+				((float *)resample_data[0])[frame * audio_monitor->channels + 0] =
+					((float *)resample_data[0])[frame * audio_monitor->channels + 0] *
+					sinf((1.0f - bal) * (M_PI / 2.0f));
+				((float *)resample_data[0])[frame * audio_monitor->channels + 1] =
+					((float *)resample_data[0])[frame * audio_monitor->channels + 1] *
+					sinf(bal * (M_PI / 2.0f));
+			}
 	}
     uint32_t bytes =
 		sizeof(float) * audio_monitor->channels * resample_frames;
@@ -247,6 +261,12 @@ void audio_monitor_set_volume(struct audio_monitor *audio_monitor, float volume)
 	if (!audio_monitor)
 		return;
     audio_monitor->volume = volume;
+}
+
+void audio_monitor_set_balance(struct audio_monitor *audio_monitor, float balance){
+	if (!audio_monitor)
+		return;
+	audio_monitor->balance = balance;
 }
 
 struct audio_monitor *audio_monitor_create(const char *device_id, const char* source_name, int port){

@@ -3,6 +3,8 @@ void audio_monitor_start(struct audio_monitor *audio_monitor){}
 void audio_monitor_audio(void *data, struct obs_audio_data *audio){}
 void audio_monitor_set_volume(struct audio_monitor *audio_monitor,
 			      float volume){}
+void audio_monitor_set_balance(struct audio_monitor *audio_monitor,
+			      float balance){}
 struct audio_monitor *audio_monitor_create(const char *device_id, const char* source_name, int port){
     return NULL;
 }
