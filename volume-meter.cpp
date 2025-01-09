@@ -326,7 +326,10 @@ void VolumeMeter::wheelEvent(QWheelEvent *event)
 		QApplication::sendEvent(proxy, event);
 }
 
-VolumeMeter::VolumeMeter(QWidget *parent, obs_volmeter_t *obs_volmeter) : QWidget(parent), obs_volmeter(obs_volmeter)
+VolumeMeter::VolumeMeter(int audio_channels, QWidget *parent, obs_volmeter_t *obs_volmeter)
+	: QWidget(parent),
+	  obs_volmeter(obs_volmeter),
+	  displayNrAudioChannels(audio_channels)
 {
 	setAttribute(Qt::WA_OpaquePaintEvent, true);
 	setMinimumSize(displayNrAudioChannels * 4 + 14, 130);
@@ -425,6 +428,8 @@ inline void VolumeMeter::handleChannelCofigurationChange()
 
 	int currentNrAudioChannels = obs_volmeter ? obs_volmeter_get_nr_channels(obs_volmeter)
 						  : audio_output_get_info(obs_get_audio())->speakers;
+	if (!currentNrAudioChannels)
+		return;
 	if (displayNrAudioChannels != currentNrAudioChannels) {
 		displayNrAudioChannels = currentNrAudioChannels;
 

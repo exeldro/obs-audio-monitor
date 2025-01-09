@@ -10,8 +10,17 @@ AudioControl::AudioControl(OBSWeakSource source_) : source(std::move(source_)), 
 {
 	obs_source_t *s = obs_weak_source_get_source(source);
 	obs_volmeter_attach_source(obs_volmeter, s);
+	int audio_channels = obs_volmeter_get_nr_channels(obs_volmeter);
+	if (!audio_channels) {
+		struct obs_audio_info audio_info;
+		if (obs_get_audio_info(&audio_info)) {
+			audio_channels = get_audio_channels(audio_info.speakers);
+		} else {
+			audio_channels = 2;
+		}
+	}
+	volMeter = new VolumeMeter(audio_channels, nullptr, obs_volmeter);
 
-	volMeter = new VolumeMeter(nullptr, obs_volmeter);
 	volMeter->muted = obs_source_muted(s);
 	volMeter->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
 

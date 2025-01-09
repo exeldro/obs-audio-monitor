@@ -49,8 +49,12 @@
 
 AudioOutputControl::AudioOutputControl(int track, obs_data_t *settings) : track(track)
 {
-
-	volMeter = new VolumeMeter();
+	int audio_channels = 2;
+	struct obs_audio_info audio_info;
+	if (obs_get_audio_info(&audio_info)) {
+		audio_channels = get_audio_channels(audio_info.speakers);
+	}
+	volMeter = new VolumeMeter(audio_channels);
 	volMeter->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
 
 	mainLayout = new QGridLayout;

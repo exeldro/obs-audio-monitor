@@ -138,7 +138,7 @@ private:
 	bool muted = false;
 
 public:
-	explicit VolumeMeter(QWidget *parent = nullptr, obs_volmeter_t *obs_volmeter = nullptr);
+	explicit VolumeMeter(int audio_channels, QWidget *parent = nullptr, obs_volmeter_t *obs_volmeter = nullptr);
 	~VolumeMeter();
 
 	void setLevels(const float magnitude[MAX_AUDIO_CHANNELS], const float peak[MAX_AUDIO_CHANNELS],
