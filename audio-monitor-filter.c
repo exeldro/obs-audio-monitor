@@ -43,7 +43,7 @@ static const char *audio_monitor_get_name(void *unused)
 }
 struct updateFilterNameData {
 
-	const char *device_id;
+	char *device_id;
 	char *device_name;
 };
 
@@ -52,6 +52,16 @@ bool updateFilterName(void *data, const char *name, const char *id)
 	struct updateFilterNameData *d = data;
 	if (strcmp(id, d->device_id) == 0) {
 		d->device_name = bstrdup(name);
+		return false;
+	}
+	return true;
+}
+
+bool updateFilterId(void *data, const char *name, const char *id)
+{
+	struct updateFilterNameData *d = data;
+	if (strcmp(name, d->device_name) == 0) {
+		d->device_id = bstrdup(id);
 		return false;
 	}
 	return true;
@@ -232,12 +242,23 @@ static void audio_monitor_update(void *data, obs_data_t *settings)
 			d.device_id = device_id;
 			d.device_name = NULL;
 			obs_enum_audio_monitoring_devices(updateFilterName, &d);
+			char *dn = (char *)obs_data_get_string(settings, "deviceName");
 			if (d.device_name) {
-				const char *dn = obs_data_get_string(settings, "deviceName");
 				if (strcmp(dn, d.device_name) != 0) {
 					obs_data_set_string(settings, "deviceName", d.device_name);
 				}
 				bfree(d.device_name);
+			} else if (strlen(dn)) {
+				d.device_id = NULL;
+				d.device_name = dn;
+				obs_enum_audio_monitoring_devices(updateFilterId, &d);
+				if (d.device_id) {
+					if (strcmp(device_id, d.device_id) != 0) {
+						obs_data_set_string(settings, "device", d.device_id);
+						device_id = (char *)obs_data_get_string(settings, "device");
+					}
+					bfree(d.device_id);
+				}
 			}
 		} else {
 			const char *dn = obs_data_get_string(settings, "deviceName");
