@@ -34,6 +34,9 @@ struct audio_monitor_context {
 	bool linked;
 	bool updating_volume;
 	int mute;
+	bool enabled;
+	bool mute_stop_start;
+	obs_hotkey_pair_id hotkey;
 };
 
 static const char *audio_monitor_get_name(void *unused)
@@ -229,6 +232,7 @@ static void audio_monitor_update(void *data, obs_data_t *settings)
 			}
 		}
 	}
+	audio_monitor->mute_stop_start = obs_data_get_bool(settings, "mute_stop_start");
 
 	int port = 0;
 	char *device_id = (char *)obs_data_get_string(settings, "device");
@@ -273,7 +277,8 @@ static void audio_monitor_update(void *data, obs_data_t *settings)
 			audio_monitor_set_format(audio_monitor->monitor, obs_data_get_int(settings, "format"));
 			audio_monitor_set_samples_per_sec(audio_monitor->monitor, obs_data_get_int(settings, "samples_per_sec"));
 		}
-		audio_monitor_start(audio_monitor->monitor);
+		if (!audio_monitor->mute_stop_start || obs_source_enabled(audio_monitor->source))
+			audio_monitor_start(audio_monitor->monitor);
 	} else if (port) {
 		audio_monitor_set_format(audio_monitor->monitor, obs_data_get_int(settings, "format"));
 		audio_monitor_set_samples_per_sec(audio_monitor->monitor, obs_data_get_int(settings, "samples_per_sec"));
@@ -294,6 +299,7 @@ static void *audio_monitor_filter_create(obs_data_t *settings, obs_source_t *sou
 {
 	struct audio_monitor_context *audio_monitor = bzalloc(sizeof(struct audio_monitor_context));
 	audio_monitor->source = source;
+	audio_monitor->hotkey = OBS_INVALID_HOTKEY_PAIR_ID;
 	signal_handler_add(obs_source_get_signal_handler(source), "void updated(ptr source)");
 	audio_monitor_update(audio_monitor, settings);
 	return audio_monitor;
@@ -302,6 +308,9 @@ static void *audio_monitor_filter_create(obs_data_t *settings, obs_source_t *sou
 static void audio_monitor_filter_destroy(void *data)
 {
 	struct audio_monitor_context *audio_monitor = data;
+	if (audio_monitor->hotkey != OBS_INVALID_HOTKEY_PAIR_ID) {
+		obs_hotkey_pair_unregister(audio_monitor->hotkey);
+	}
 	obs_source_t *parent = obs_filter_get_parent(audio_monitor->source);
 	if (parent) {
 		signal_handler_t *sh = obs_source_get_signal_handler(parent);
@@ -441,6 +450,7 @@ static obs_properties_t *audio_monitor_properties(void *data)
 	obs_property_list_add_int(p, obs_module_text("Never"), MUTE_NEVER);
 	obs_property_list_add_int(p, obs_module_text("NotActiveOutput"), MUTE_NOT_ACTIVE);
 	obs_property_list_add_int(p, obs_module_text("SourceMuted"), MUTE_SOURCE_MUTE);
+	obs_properties_add_bool(ppts, "mute_stop_start", obs_module_text("MuteStopStart"));
 
 	p = obs_properties_add_int(ppts, "delay", obs_module_text("Delay"), 0, 10000, 100);
 	obs_property_int_set_suffix(p, "ms");
@@ -521,6 +531,61 @@ void audio_monitor_filter_remove(void *data, obs_source_t *source)
 	circlebuf_free(&audio_monitor->audio_buffer);
 }
 
+bool audio_monitor_enable_hotkey(void *data, obs_hotkey_pair_id id, obs_hotkey_t *hotkey, bool pressed)
+{
+	UNUSED_PARAMETER(id);
+	UNUSED_PARAMETER(hotkey);
+	struct audio_monitor_context *audio_monitor = data;
+	if (!pressed)
+		return false;
+
+	if (obs_source_enabled(audio_monitor->source))
+		return false;
+
+	obs_source_set_enabled(audio_monitor->source, true);
+
+	return true;
+}
+
+bool audio_monitor_disable_hotkey(void *data, obs_hotkey_pair_id id, obs_hotkey_t *hotkey, bool pressed)
+{
+	UNUSED_PARAMETER(id);
+	UNUSED_PARAMETER(hotkey);
+	struct audio_monitor_context *audio_monitor = data;
+	if (!pressed)
+		return false;
+	if (!obs_source_enabled(audio_monitor->source))
+		return false;
+
+	obs_source_set_enabled(audio_monitor->source, false);
+	return true;
+}
+
+void audio_monitor_video_tick(void *data, float seconds)
+{
+	UNUSED_PARAMETER(seconds);
+	struct audio_monitor_context *audio_monitor = data;
+	if (audio_monitor->hotkey == OBS_INVALID_HOTKEY_PAIR_ID) {
+		obs_source_t *parent = obs_filter_get_parent(audio_monitor->source);
+		if (parent) {
+			audio_monitor->hotkey = obs_hotkey_pair_register_source(
+				parent, "AudioMonitor.Enable", obs_module_text("AudioMonitorUnmute"), "AudioMonitor.Disable",
+				obs_module_text("AudioMonitorMute"), audio_monitor_enable_hotkey, audio_monitor_disable_hotkey,
+				audio_monitor, audio_monitor);
+		}
+	}
+	if (audio_monitor->enabled != obs_source_enabled(audio_monitor->source)) {
+		audio_monitor->enabled = obs_source_enabled(audio_monitor->source);
+		if (audio_monitor->enabled) {
+			if (audio_monitor->monitor && audio_monitor->mute_stop_start)
+				audio_monitor_start(audio_monitor->monitor);
+		} else {
+			if (audio_monitor->monitor && audio_monitor->mute_stop_start)
+				audio_monitor_stop(audio_monitor->monitor);
+		}
+	}
+}
+
 struct obs_source_info audio_monitor_filter_info = {
 	.id = "audio_monitor",
 	.type = OBS_SOURCE_TYPE_FILTER,
@@ -534,6 +599,7 @@ struct obs_source_info audio_monitor_filter_info = {
 	.get_properties = audio_monitor_properties,
 	.filter_audio = audio_monitor_filter_audio,
 	.filter_remove = audio_monitor_filter_remove,
+	.video_tick = audio_monitor_video_tick,
 };
 
 OBS_DECLARE_MODULE()
