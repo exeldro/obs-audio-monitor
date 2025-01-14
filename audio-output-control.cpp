@@ -432,3 +432,10 @@ void AudioOutputControl::RemoveDevice(QString device_id)
 		}
 	}
 }
+
+void AudioOutputControl::Reset() {
+	for (auto d = audioDevices.begin(); d != audioDevices.end(); d++) {
+		audio_monitor_stop(d.value());
+		audio_monitor_start(d.value());
+	}
+}

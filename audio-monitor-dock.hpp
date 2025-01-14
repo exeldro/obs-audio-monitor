@@ -15,6 +15,7 @@ class AudioMonitorDock : public QStackedWidget {
 private:
 	QGridLayout *mainLayout;
 	QMap<QString, QString> audioDevices;
+	obs_hotkey_id resetHotkey = OBS_INVALID_HOTKEY_ID;
 
 	void addAudioControl(obs_source_t *source, int column, obs_source_t *filter);
 	void moveAudioControl(int fromColumn, int toColumn);
@@ -30,6 +31,7 @@ private:
 	static bool OBSAddAudioDevice(void *data, const char *name, const char *id);
 	static bool OBSAddAudioSource(void *, obs_source_t *);
 	static void OBSFilterAdd(obs_source_t *parent, obs_source_t *child, void *data);
+	static void ResetHotkey(void *data, obs_hotkey_id id, obs_hotkey_t *hotkey, bool pressed);
 	bool showOutputMeter;
 	bool showOutputSlider;
 	bool showOnlyActive;

@@ -39,7 +39,7 @@ MODULE_EXPORT void load_audio_monitor_dock()
 
 AudioMonitorDock::AudioMonitorDock(QWidget *parent) : QStackedWidget(parent)
 {
-
+	resetHotkey = obs_hotkey_register_frontend("AudioMonitor.Reset", obs_module_text("AudioMonitorReset"), ResetHotkey, this);
 	mainLayout = new QGridLayout;
 	mainLayout->setAlignment(Qt::AlignTop | Qt::AlignLeft);
 	mainLayout->setRowStretch(1, 1);
@@ -53,6 +53,9 @@ AudioMonitorDock::AudioMonitorDock(QWidget *parent) : QStackedWidget(parent)
 		bfree(file);
 	}
 	if (data) {
+		obs_data_array_t *hotkey = obs_data_get_array(data, "reset_hotkey");
+		obs_hotkey_load(resetHotkey, hotkey);
+		obs_data_array_release(hotkey);
 		showOutputMeter = obs_data_get_bool(data, "showOutputMeter");
 		showOutputSlider = obs_data_get_bool(data, "showOutputSlider");
 		showOnlyActive = obs_data_get_bool(data, "showOnlyActive");
@@ -128,43 +131,50 @@ AudioMonitorDock::~AudioMonitorDock()
 	signal_handler_disconnect_global(obs_get_signal_handler(), OBSSignal, this);
 	obs_frontend_remove_event_callback(OBSFrontendEvent, this);
 	char *file = obs_module_config_path("config.json");
-	if (file) {
-		obs_data_t *data = obs_data_create_from_json_file(file);
-		if (!data)
-			data = obs_data_create();
-		obs_data_set_bool(data, "showOutputMeter", showOutputMeter);
-		obs_data_set_bool(data, "showOutputSlider", showOutputSlider);
-		obs_data_set_bool(data, "showOnlyActive", showOnlyActive);
-		obs_data_set_bool(data, "showSliderNames", showSliderNames);
-		auto *outputs = obs_data_array_create();
-		for (int i = 0; i < MAX_AUDIO_MIXES; i++) {
-			auto *item = mainLayout->itemAtPosition(1, i + 1);
-			obs_data_t *output;
-			if (item) {
-				AudioOutputControl *control = static_cast<AudioOutputControl *>(item->widget());
-				output = control->GetSettings();
-				obs_data_set_bool(output, "enabled", true);
-			} else {
-				output = obs_data_create();
-				obs_data_set_bool(output, "enabled", false);
-			}
-			obs_data_array_push_back(outputs, output);
-			obs_data_release(output);
-		}
-		obs_data_set_array(data, "outputs", outputs);
-		obs_data_array_release(outputs);
-
-		if (!obs_data_save_json(data, file)) {
-			char *path = obs_module_config_path("");
-			if (path) {
-				os_mkdirs(path);
-				bfree(path);
-			}
-			obs_data_save_json(data, file);
-		}
-		obs_data_release(data);
-		bfree(file);
+	if (!file) {
+		obs_hotkey_unregister(resetHotkey);
+		return;
 	}
+	obs_data_t *data = obs_data_create_from_json_file(file);
+	if (!data)
+		data = obs_data_create();
+	obs_data_array_t *hotkey = obs_hotkey_save(resetHotkey);
+	obs_data_set_array(data, "reset_hotkey", hotkey);
+	obs_data_array_release(hotkey);
+	obs_hotkey_unregister(resetHotkey);
+
+	obs_data_set_bool(data, "showOutputMeter", showOutputMeter);
+	obs_data_set_bool(data, "showOutputSlider", showOutputSlider);
+	obs_data_set_bool(data, "showOnlyActive", showOnlyActive);
+	obs_data_set_bool(data, "showSliderNames", showSliderNames);
+	auto *outputs = obs_data_array_create();
+	for (int i = 0; i < MAX_AUDIO_MIXES; i++) {
+		auto *item = mainLayout->itemAtPosition(1, i + 1);
+		obs_data_t *output;
+		if (item) {
+			AudioOutputControl *control = static_cast<AudioOutputControl *>(item->widget());
+			output = control->GetSettings();
+			obs_data_set_bool(output, "enabled", true);
+		} else {
+			output = obs_data_create();
+			obs_data_set_bool(output, "enabled", false);
+		}
+		obs_data_array_push_back(outputs, output);
+		obs_data_release(output);
+	}
+	obs_data_set_array(data, "outputs", outputs);
+	obs_data_array_release(outputs);
+
+	if (!obs_data_save_json(data, file)) {
+		char *path = obs_module_config_path("");
+		if (path) {
+			os_mkdirs(path);
+			bfree(path);
+		}
+		obs_data_save_json(data, file);
+	}
+	obs_data_release(data);
+	bfree(file);
 }
 
 void AudioMonitorDock::OBSSignal(void *data, const char *signal, calldata_t *call_data)
@@ -841,6 +851,23 @@ void AudioMonitorDock::addOutputTrack(int i, obs_data_t *obs_data)
 	nameLabel->setAlignment(Qt::AlignCenter);
 
 	mainLayout->addWidget(nameLabel, 0, i + 1);
+}
+
+void AudioMonitorDock::ResetHotkey(void *data, obs_hotkey_id id, obs_hotkey_t *hotkey, bool pressed)
+{
+	UNUSED_PARAMETER(id);
+	UNUSED_PARAMETER(hotkey);
+	AudioMonitorDock *dock = static_cast<AudioMonitorDock *>(data);
+	if (!pressed)
+		return;
+	for (int i = 0; i < MAX_AUDIO_MIXES; i++) {
+		auto *item = dock->mainLayout->itemAtPosition(1, i + 1);
+		if (!item)
+			continue;
+		AudioOutputControl *control = static_cast<AudioOutputControl *>(item->widget());
+		if (control)
+			control->Reset();
+	}
 }
 
 void HScrollArea::resizeEvent(QResizeEvent *event)
