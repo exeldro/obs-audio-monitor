@@ -71,6 +71,28 @@ AudioOutputControl::AudioOutputControl(int track, obs_data_t *settings) : track(
 				auto *device = obs_data_array_item(devices, i);
 				if (!device)
 					continue;
+				struct updateFilterNameData d;
+				char *id = (char *)obs_data_get_string(device, "id");
+				d.device_id = id;
+				d.device_name = NULL;
+				obs_enum_audio_monitoring_devices(updateFilterName, &d);
+				char *dn = (char *)obs_data_get_string(device, "deviceName");
+				if (d.device_name) {
+					if (strcmp(dn, d.device_name) != 0) {
+						obs_data_set_string(device, "deviceName", d.device_name);
+					}
+					bfree(d.device_name);
+				} else if (strlen(dn)) {
+					d.device_id = NULL;
+					d.device_name = dn;
+					obs_enum_audio_monitoring_devices(updateFilterId, &d);
+					if (d.device_id) {
+						if (strcmp(id, d.device_id) != 0) {
+							obs_data_set_string(device, "id", d.device_id);
+						}
+						bfree(d.device_id);
+					}
+				}
 				QString device_id = QT_UTF8(obs_data_get_string(device, "id"));
 				auto it = audioDevices.find(device_id);
 				if (it == audioDevices.end()) {
@@ -433,7 +455,8 @@ void AudioOutputControl::RemoveDevice(QString device_id)
 	}
 }
 
-void AudioOutputControl::Reset() {
+void AudioOutputControl::Reset()
+{
 	for (auto d = audioDevices.begin(); d != audioDevices.end(); d++) {
 		audio_monitor_stop(d.value());
 		audio_monitor_start(d.value());
