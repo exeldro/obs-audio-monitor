@@ -36,6 +36,7 @@ struct audio_monitor_context {
 	int mute;
 	bool enabled;
 	bool mute_stop_start;
+	bool parent_loaded;
 	obs_hotkey_pair_id hotkey;
 };
 
@@ -158,6 +159,7 @@ static void audio_monitor_update(void *data, obs_data_t *settings)
 	const float mul = obs_db_to_mul(db);
 	obs_source_t *parent = obs_filter_get_parent(audio_monitor->source);
 	if (parent) {
+		audio_monitor->parent_loaded = true;
 		if (obs_data_get_bool(settings, "linked")) {
 			const float vol = obs_source_get_volume(parent);
 			float db2 = obs_mul_to_db(vol);
@@ -560,6 +562,9 @@ void audio_monitor_video_tick(void *data, float seconds)
 {
 	UNUSED_PARAMETER(seconds);
 	struct audio_monitor_context *audio_monitor = data;
+	if (!audio_monitor->parent_loaded && obs_filter_get_parent(audio_monitor->source)) {
+		obs_source_update(audio_monitor->source, NULL);
+	}
 	if (audio_monitor->hotkey == OBS_INVALID_HOTKEY_PAIR_ID) {
 		obs_source_t *parent = obs_filter_get_parent(audio_monitor->source);
 		if (parent) {
