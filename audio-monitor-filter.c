@@ -21,6 +21,8 @@
 #define MUTE_NEVER 0
 #define MUTE_NOT_ACTIVE 1
 #define MUTE_SOURCE_MUTE 2
+#define MUTE_NOT_PREVIEW 3
+#define MUTE_NOT_PROGRAM 4
 
 struct audio_monitor_context {
 	obs_source_t *source;
@@ -142,12 +144,49 @@ void audio_monitor_deactivated(void *data, calldata_t *call_data)
 	if (obs_source_enabled(audio_monitor->source))
 		obs_source_set_enabled(audio_monitor->source, false);
 }
+struct source_found {
+	obs_source_t *source;
+	bool found;
+};
+
+static void source_exists(obs_source_t *parent, obs_source_t *child, void *param)
+{
+	UNUSED_PARAMETER(parent);
+	struct source_found *sf = param;
+	if (child == sf->source)
+		sf->found = true;
+}
+
+static void audio_monitor_frontend_event(enum obs_frontend_event event, void *data)
+{
+	struct audio_monitor_context *audio_monitor = data;
+	if (event == OBS_FRONTEND_EVENT_SCENE_CHANGED && audio_monitor->mute == MUTE_NOT_PROGRAM) {
+		struct source_found sf;
+		sf.source = obs_filter_get_parent(audio_monitor->source);
+		sf.found = false;
+		obs_source_enum_full_tree(obs_frontend_get_current_scene(), source_exists, &sf);
+		if (obs_source_enabled(audio_monitor->source) != sf.found)
+			obs_source_set_enabled(audio_monitor->source, sf.found);
+	} else if ((event == OBS_FRONTEND_EVENT_PREVIEW_SCENE_CHANGED || event == OBS_FRONTEND_EVENT_STUDIO_MODE_ENABLED) &&
+		   audio_monitor->mute == MUTE_NOT_PREVIEW) {
+		struct source_found sf;
+		sf.source = obs_filter_get_parent(audio_monitor->source);
+		sf.found = false;
+		obs_source_enum_full_tree(obs_frontend_get_current_preview_scene(), source_exists, &sf);
+		if (obs_source_enabled(audio_monitor->source) != sf.found)
+			obs_source_set_enabled(audio_monitor->source, sf.found);
+	} else if (event == OBS_FRONTEND_EVENT_STUDIO_MODE_DISABLED && audio_monitor->mute == MUTE_NOT_PREVIEW) {
+		if (obs_source_enabled(audio_monitor->source))
+			obs_source_set_enabled(audio_monitor->source, false);
+	}
+}
 
 static void audio_monitor_update(void *data, obs_data_t *settings)
 {
 	struct audio_monitor_context *audio_monitor = data;
 
 	audio_monitor->delay = obs_data_get_int(settings, "delay");
+	const int mute = (int)obs_data_get_int(settings, "mute");
 	float def = (float)obs_data_get_double(settings, "volume") / 100.0f;
 	float db;
 	if (def >= 1.0f)
@@ -183,7 +222,6 @@ static void audio_monitor_update(void *data, obs_data_t *settings)
 				audio_monitor->linked = false;
 			}
 		}
-		const int mute = (int)obs_data_get_int(settings, "mute");
 		if (audio_monitor->mute == MUTE_SOURCE_MUTE && mute != audio_monitor->mute) {
 			signal_handler_t *sh = obs_source_get_signal_handler(parent);
 			if (sh) {
@@ -228,6 +266,11 @@ static void audio_monitor_update(void *data, obs_data_t *settings)
 				}
 			}
 		}
+	}
+	obs_frontend_remove_event_callback(audio_monitor_frontend_event, audio_monitor);
+	if (mute == MUTE_NOT_PREVIEW || mute == MUTE_NOT_PROGRAM) {
+		obs_frontend_add_event_callback(audio_monitor_frontend_event, audio_monitor);
+		audio_monitor->mute = mute;
 	}
 	audio_monitor->mute_stop_start = obs_data_get_bool(settings, "mute_stop_start");
 
@@ -305,6 +348,7 @@ static void *audio_monitor_filter_create(obs_data_t *settings, obs_source_t *sou
 static void audio_monitor_filter_destroy(void *data)
 {
 	struct audio_monitor_context *audio_monitor = data;
+	obs_frontend_remove_event_callback(audio_monitor_frontend_event, audio_monitor);
 	if (audio_monitor->hotkey != OBS_INVALID_HOTKEY_PAIR_ID) {
 		obs_hotkey_pair_unregister(audio_monitor->hotkey);
 	}
@@ -447,6 +491,8 @@ static obs_properties_t *audio_monitor_properties(void *data)
 	obs_property_list_add_int(p, obs_module_text("Never"), MUTE_NEVER);
 	obs_property_list_add_int(p, obs_module_text("NotActiveOutput"), MUTE_NOT_ACTIVE);
 	obs_property_list_add_int(p, obs_module_text("SourceMuted"), MUTE_SOURCE_MUTE);
+	obs_property_list_add_int(p, obs_module_text("NotPreview"), MUTE_NOT_PREVIEW);
+	obs_property_list_add_int(p, obs_module_text("NotProgram"), MUTE_NOT_PROGRAM);
 	obs_properties_add_bool(ppts, "mute_stop_start", obs_module_text("MuteStopStart"));
 
 	p = obs_properties_add_int(ppts, "delay", obs_module_text("Delay"), 0, 10000, 100);
@@ -507,6 +553,7 @@ void audio_monitor_filter_remove(void *data, obs_source_t *source)
 {
 	UNUSED_PARAMETER(source);
 	struct audio_monitor_context *audio_monitor = data;
+	obs_frontend_remove_event_callback(audio_monitor_frontend_event, audio_monitor);
 	obs_source_t *parent = obs_filter_get_parent(audio_monitor->source);
 	if (parent) {
 		signal_handler_t *sh = obs_source_get_signal_handler(parent);
