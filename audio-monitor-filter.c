@@ -233,7 +233,7 @@ static void audio_monitor_update(void *data, obs_data_t *settings)
 			signal_handler_t *sh = obs_source_get_signal_handler(parent);
 			if (sh) {
 				signal_handler_disconnect(sh, "activate", audio_monitor_activated, audio_monitor);
-				signal_handler_disconnect(sh, "deactivated", audio_monitor_deactivated, audio_monitor);
+				signal_handler_disconnect(sh, "deactivate", audio_monitor_deactivated, audio_monitor);
 				audio_monitor->mute = MUTE_NEVER;
 			}
 		}
@@ -358,7 +358,7 @@ static void audio_monitor_filter_destroy(void *data)
 		signal_handler_disconnect(sh, "volume", audio_monitor_volume_changed, audio_monitor);
 		signal_handler_disconnect(sh, "mute", audio_monitor_mute_changed, audio_monitor);
 		signal_handler_disconnect(sh, "activate", audio_monitor_activated, audio_monitor);
-		signal_handler_disconnect(sh, "deactivated", audio_monitor_deactivated, audio_monitor);
+		signal_handler_disconnect(sh, "deactivate", audio_monitor_deactivated, audio_monitor);
 	}
 	audio_monitor->source = NULL;
 	if (audio_monitor->monitor) {
@@ -560,7 +560,7 @@ void audio_monitor_filter_remove(void *data, obs_source_t *source)
 		signal_handler_disconnect(sh, "volume", audio_monitor_volume_changed, audio_monitor);
 		signal_handler_disconnect(sh, "mute", audio_monitor_mute_changed, audio_monitor);
 		signal_handler_disconnect(sh, "activate", audio_monitor_activated, audio_monitor);
-		signal_handler_disconnect(sh, "deactivated", audio_monitor_deactivated, audio_monitor);
+		signal_handler_disconnect(sh, "deactivate", audio_monitor_deactivated, audio_monitor);
 	}
 	if (audio_monitor->monitor) {
 		audio_monitor_destroy(audio_monitor->monitor);
