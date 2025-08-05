@@ -155,7 +155,7 @@ void AudioOutputControl::OBSOutputAudio(void *param, size_t mix_idx, struct audi
 		__m128 work = previous_samples;
 		__m128 peak = previous_samples;
 		for (size_t i = 0; (i + 3) < nr_samples; i += 4) {
-			__m128 new_work = _mm_load_ps(&samples[i]);
+			__m128 new_work = _mm_loadu_ps(&samples[i]);
 			__m128 intrp_samples;
 
 			/* Include the actual sample values in the peak. */

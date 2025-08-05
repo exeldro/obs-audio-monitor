@@ -90,22 +90,13 @@ elseif(OS_MACOS)
 		audio-monitor-mac.c
 		audio-monitor-mac.h)
 elseif(UNIX)
-	if (NOT "${PULSEAUDIO_LIBRARY}" STREQUAL "")
-		message(STATUS "Found PulseAudio - Audio Monitor enabled")
-		set(HAVE_PULSEAUDIO "1")
-		set(audio-monitor_PLATFORM_DEPS
-		${PULSEAUDIO_LIBRARY})
-		list(APPEND audio-monitor_SOURCES
-			audio-monitor-pulse.c)
-		list(APPEND audio-monitor_SOURCES
-			audio-monitor-pulse.h)
-	else()
-		list(APPEND audio-monitor_SOURCES
-			audio-monitor-null.c)
-		list(APPEND audio-monitor_SOURCES
-			audio-monitor-null.h)
-		set(HAVE_PULSEAUDIO "0")
-	endif()
+	find_library(PULSEAUDIO_LIBRARY NAMES pulse)
+
+	target_link_libraries(${PROJECT_NAME}
+	${PULSEAUDIO_LIBRARY})
+	target_sources(${PROJECT_NAME} PRIVATE 
+		audio-monitor-pulse.c
+		audio-monitor-pulse.h)
 endif()
 
 set_target_properties(${PROJECT_NAME} PROPERTIES AUTOMOC ON AUTOUIC ON AUTORCC ON)
