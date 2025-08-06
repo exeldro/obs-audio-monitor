@@ -461,6 +461,8 @@ void audio_monitor_stop(struct audio_monitor *audio_monitor)
 	if (!audio_monitor)
 		return;
 
+	pthread_mutex_lock(&audio_monitor->mutex);
+
 	if (audio_monitor->stream) {
 		/* Stop the stream */
 		pulseaudio_lock();
@@ -484,12 +486,17 @@ void audio_monitor_stop(struct audio_monitor *audio_monitor)
 
 	audio_resampler_destroy(audio_monitor->resampler);
 	audio_monitor->resampler = NULL;
+
+	pthread_mutex_unlock(&audio_monitor->mutex);
 }
 
 void audio_monitor_start(struct audio_monitor *audio_monitor)
 {
 	if (!audio_monitor)
 		return;
+
+	pthread_mutex_lock(&audio_monitor->mutex);
+
 	pulseaudio_init();
 	char *device = NULL;
 	if (strcmp(audio_monitor->device_id, "default") == 0) {
@@ -497,14 +504,18 @@ void audio_monitor_start(struct audio_monitor *audio_monitor)
 	} else {
 		device = bstrdup(audio_monitor->device_id);
 	}
-	if (!device)
+	if (!device) {
+		pthread_mutex_unlock(&audio_monitor->mutex);
 		return;
+	}
 	if (pulseaudio_get_server_info(pulseaudio_server_info, (void *)audio_monitor) < 0) {
+		pthread_mutex_unlock(&audio_monitor->mutex);
 		blog(LOG_ERROR, "Unable to get server info !");
 		bfree(device);
 		return;
 	}
 	if (pulseaudio_get_sink_info(pulseaudio_sink_info, device, (void *)audio_monitor) < 0) {
+		pthread_mutex_unlock(&audio_monitor->mutex);
 		blog(LOG_ERROR, "Unable to get source info !");
 		bfree(device);
 		return;
@@ -512,6 +523,7 @@ void audio_monitor_start(struct audio_monitor *audio_monitor)
 	bfree(device);
 
 	if (audio_monitor->format == PA_SAMPLE_INVALID) {
+		pthread_mutex_unlock(&audio_monitor->mutex);
 		blog(LOG_ERROR, "An error occurred while getting the source info!");
 		return;
 	}
@@ -522,6 +534,7 @@ void audio_monitor_start(struct audio_monitor *audio_monitor)
 	spec.channels = audio_monitor->channels;
 
 	if (!pa_sample_spec_valid(&spec)) {
+		pthread_mutex_unlock(&audio_monitor->mutex);
 		blog(LOG_ERROR, "Sample spec is not valid");
 		return;
 	}
@@ -538,6 +551,7 @@ void audio_monitor_start(struct audio_monitor *audio_monitor)
 	audio_monitor->resampler = audio_resampler_create(&to, &from);
 
 	if (!audio_monitor->resampler) {
+		pthread_mutex_unlock(&audio_monitor->mutex);
 		blog(LOG_WARNING, "%s: %s", __FUNCTION__, "Failed to create resampler");
 		return;
 	}
@@ -550,6 +564,7 @@ void audio_monitor_start(struct audio_monitor *audio_monitor)
 
 	audio_monitor->stream = pulseaudio_stream_new(audio_monitor->source_name, &spec, &channel_map);
 	if (!audio_monitor->stream) {
+		pthread_mutex_unlock(&audio_monitor->mutex);
 		blog(LOG_ERROR, "Unable to create stream");
 		return;
 	}
@@ -567,6 +582,7 @@ void audio_monitor_start(struct audio_monitor *audio_monitor)
 	int_fast32_t ret =
 		pulseaudio_connect_playback(audio_monitor->stream, audio_monitor->device_id, &audio_monitor->attr, flags);
 	if (ret < 0) {
+		pthread_mutex_unlock(&audio_monitor->mutex);
 		audio_monitor_stop(audio_monitor);
 		blog(LOG_ERROR, "Unable to connect to stream");
 		return;
@@ -577,6 +593,8 @@ void audio_monitor_start(struct audio_monitor *audio_monitor)
 	pulseaudio_write_callback(audio_monitor->stream, pulseaudio_stream_write, (void *)audio_monitor);
 
 	pulseaudio_set_underflow_callback(audio_monitor->stream, pulseaudio_underflow, (void *)audio_monitor);
+
+	pthread_mutex_unlock(&audio_monitor->mutex);
 }
 
 static void do_stream_write(void *param)
