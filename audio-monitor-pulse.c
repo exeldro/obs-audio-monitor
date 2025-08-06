@@ -230,7 +230,6 @@ void pulseaudio_unref()
 
 void get_default_id(char **id)
 {
-	pulseaudio_init();
 	struct pulseaudio_default_output *pdo = bzalloc(sizeof(struct pulseaudio_default_output));
 	pulseaudio_get_server_info((pa_server_info_cb_t)pulseaudio_default_devices, (void *)pdo);
 
@@ -241,7 +240,6 @@ void get_default_id(char **id)
 	}
 
 	bfree(pdo);
-	pulseaudio_unref();
 }
 
 static void pulseaudio_server_info(pa_context *c, const pa_server_info *i, void *userdata)
