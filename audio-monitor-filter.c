@@ -4,19 +4,8 @@
 #include "obs-module.h"
 #include "obs.h"
 #include "version.h"
-#if LIBOBS_API_VER >= MAKE_SEMANTIC_VERSION(30, 1, 0)
+
 #include <util/deque.h>
-#define circlebuf_peek_front deque_peek_front
-#define circlebuf_peek_back deque_peek_back
-#define circlebuf_push_front deque_push_front
-#define circlebuf_push_back deque_push_back
-#define circlebuf_pop_front deque_pop_front
-#define circlebuf_pop_back deque_pop_back
-#define circlebuf_init deque_init
-#define circlebuf_free deque_free
-#else
-#include <util/circlebuf.h>
-#endif
 
 #define MUTE_NEVER 0
 #define MUTE_NOT_ACTIVE 1
@@ -28,11 +17,7 @@ struct audio_monitor_context {
 	obs_source_t *source;
 	struct audio_monitor *monitor;
 	long long delay;
-#if LIBOBS_API_VER >= MAKE_SEMANTIC_VERSION(30, 1, 0)
 	struct deque audio_buffer;
-#else
-	struct circlebuf audio_buffer;
-#endif
 	bool linked;
 	bool updating_volume;
 	int mute;
@@ -367,11 +352,11 @@ static void audio_monitor_filter_destroy(void *data)
 	}
 	while (audio_monitor->audio_buffer.size) {
 		struct obs_audio_data cached;
-		circlebuf_pop_front(&audio_monitor->audio_buffer, &cached, sizeof(cached));
+		deque_pop_front(&audio_monitor->audio_buffer, &cached, sizeof(cached));
 		for (size_t i = 0; i < MAX_AV_PLANES; i++)
 			bfree(cached.data[i]);
 	}
-	circlebuf_free(&audio_monitor->audio_buffer);
+	deque_free(&audio_monitor->audio_buffer);
 	bfree(audio_monitor);
 }
 
@@ -386,20 +371,20 @@ struct obs_audio_data *audio_monitor_filter_audio(void *data, struct obs_audio_d
 
 			cached.data[i] = bmemdup(audio->data[i], audio->frames * sizeof(float));
 		}
-		circlebuf_push_back(&audio_monitor->audio_buffer, &cached, sizeof(cached));
-		circlebuf_peek_front(&audio_monitor->audio_buffer, &cached, sizeof(cached));
+		deque_push_back(&audio_monitor->audio_buffer, &cached, sizeof(cached));
+		deque_peek_front(&audio_monitor->audio_buffer, &cached, sizeof(cached));
 		uint64_t diff = cached.timestamp > audio->timestamp ? cached.timestamp - audio->timestamp
 								    : audio->timestamp - cached.timestamp;
 		while (audio_monitor->audio_buffer.size > sizeof(cached) && diff >= (uint64_t)audio_monitor->delay * 1000000) {
 
-			circlebuf_pop_front(&audio_monitor->audio_buffer, NULL, sizeof(cached));
+			deque_pop_front(&audio_monitor->audio_buffer, NULL, sizeof(cached));
 
 			audio_monitor_audio(audio_monitor->monitor, &cached);
 
 			for (size_t i = 0; i < MAX_AV_PLANES; i++)
 				bfree(cached.data[i]);
 
-			circlebuf_peek_front(&audio_monitor->audio_buffer, &cached, sizeof(cached));
+			deque_peek_front(&audio_monitor->audio_buffer, &cached, sizeof(cached));
 			diff = cached.timestamp > audio->timestamp ? cached.timestamp - audio->timestamp
 								   : audio->timestamp - cached.timestamp;
 		}
@@ -408,7 +393,7 @@ struct obs_audio_data *audio_monitor_filter_audio(void *data, struct obs_audio_d
 			audio_monitor_audio(audio_monitor->monitor, audio);
 		while (audio_monitor->audio_buffer.size) {
 			struct obs_audio_data cached;
-			circlebuf_pop_front(&audio_monitor->audio_buffer, &cached, sizeof(cached));
+			deque_pop_front(&audio_monitor->audio_buffer, &cached, sizeof(cached));
 			for (size_t i = 0; i < MAX_AV_PLANES; i++)
 				bfree(cached.data[i]);
 		}
@@ -568,11 +553,11 @@ void audio_monitor_filter_remove(void *data, obs_source_t *source)
 	}
 	while (audio_monitor->audio_buffer.size) {
 		struct obs_audio_data cached;
-		circlebuf_pop_front(&audio_monitor->audio_buffer, &cached, sizeof(cached));
+		deque_pop_front(&audio_monitor->audio_buffer, &cached, sizeof(cached));
 		for (size_t i = 0; i < MAX_AV_PLANES; i++)
 			bfree(cached.data[i]);
 	}
-	circlebuf_free(&audio_monitor->audio_buffer);
+	deque_free(&audio_monitor->audio_buffer);
 }
 
 bool audio_monitor_enable_hotkey(void *data, obs_hotkey_pair_id id, obs_hotkey_t *hotkey, bool pressed)
