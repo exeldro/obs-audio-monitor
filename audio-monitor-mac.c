@@ -4,7 +4,7 @@
 #include <AudioToolbox/AudioQueue.h>
 #include <CoreFoundation/CFString.h>
 #include <CoreAudio/CoreAudio.h>
-#include <util/circlebuf.h>
+#include <util/deque.h>
 #include <obs-module.h>
 
 #include "media-io/audio-resampler.h"
@@ -28,8 +28,8 @@ struct audio_monitor {
 	AudioQueueBufferRef buffers[3];
 	size_t buffer_size;
 	size_t wait_size;
-	struct circlebuf empty_buffers;
-	struct circlebuf new_data;
+	struct deque empty_buffers;
+	struct deque new_data;
 	volatile bool active;
 	bool paused;
     uint32_t channels;
@@ -50,8 +50,8 @@ static inline bool fill_buffer(struct audio_monitor *monitor)
 		return false;
 	}
 
-	circlebuf_pop_front(&monitor->empty_buffers, &buf, sizeof(buf));
-	circlebuf_pop_front(&monitor->new_data, buf->mAudioData,
+	deque_pop_front(&monitor->empty_buffers, &buf, sizeof(buf));
+	deque_pop_front(&monitor->new_data, buf->mAudioData,
 			    monitor->buffer_size);
 
 	buf->mAudioDataByteSize = monitor->buffer_size;
@@ -70,7 +70,7 @@ static void buffer_audio(void *data, AudioQueueRef aq, AudioQueueBufferRef buf)
 	struct audio_monitor *monitor = data;
 
 	pthread_mutex_lock(&monitor->mutex);
-	circlebuf_push_back(&monitor->empty_buffers, &buf, sizeof(buf));
+	deque_push_back(&monitor->empty_buffers, &buf, sizeof(buf));
 	while (monitor->empty_buffers.size > 0) {
 		if (!fill_buffer(monitor)) {
 			break;
@@ -102,8 +102,8 @@ void audio_monitor_stop(struct audio_monitor *audio_monitor){
 	if (audio_monitor->queue) {
 		AudioQueueDispose(audio_monitor->queue, true);
 	}
-	circlebuf_free(&audio_monitor->empty_buffers);
-	circlebuf_free(&audio_monitor->new_data);
+	deque_free(&audio_monitor->empty_buffers);
+	deque_free(&audio_monitor->new_data);
     audio_resampler_destroy(audio_monitor->resampler);
 	audio_monitor->resampler = NULL;
 }
@@ -166,7 +166,7 @@ void audio_monitor_start(struct audio_monitor *audio_monitor){
 			return;
 		}
 
-		circlebuf_push_back(&audio_monitor->empty_buffers,
+		deque_push_back(&audio_monitor->empty_buffers,
 				    &audio_monitor->buffers[i],
 				    sizeof(audio_monitor->buffers[i]));
 	}
@@ -253,7 +253,7 @@ void audio_monitor_audio(void *data, struct obs_audio_data *audio){
 	}
     uint32_t bytes =
 		sizeof(float) * audio_monitor->channels * resample_frames;
-	circlebuf_push_back(&audio_monitor->new_data, resample_data[0], bytes);
+	deque_push_back(&audio_monitor->new_data, resample_data[0], bytes);
 	if (audio_monitor->new_data.size >= audio_monitor->wait_size) {
 		audio_monitor->wait_size = 0;
 

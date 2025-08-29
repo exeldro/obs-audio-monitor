@@ -1,19 +1,7 @@
 #include "audio-monitor-pulse.h"
 #include <obs.h>
 #include <util/threading.h>
-#if LIBOBS_API_VER >= MAKE_SEMANTIC_VERSION(30, 1, 0)
 #include <util/deque.h>
-#define circlebuf_peek_front deque_peek_front
-#define circlebuf_peek_back deque_peek_back
-#define circlebuf_push_front deque_push_front
-#define circlebuf_push_back deque_push_back
-#define circlebuf_pop_front deque_pop_front
-#define circlebuf_pop_back deque_pop_back
-#define circlebuf_init deque_init
-#define circlebuf_free deque_free
-#else
-#include <util/circlebuf.h>
-#endif
 #include <media-io/audio-resampler.h>
 #include <pulse/stream.h>
 #include <pulse/introspect.h>
@@ -34,11 +22,7 @@ struct audio_monitor {
 
 	uint_fast8_t channels;
 
-#if LIBOBS_API_VER >= MAKE_SEMANTIC_VERSION(30, 1, 0)
 	struct deque new_data;
-#else
-	struct circlebuf new_data;
-#endif
 
 	audio_resampler_t *resampler;
 	float volume;
@@ -446,7 +430,7 @@ void audio_monitor_stop(struct audio_monitor *audio_monitor)
 
 	blog(LOG_INFO, "Stopped Monitoring in '%s'", audio_monitor->device_id);
 
-	circlebuf_free(&audio_monitor->new_data);
+	deque_free(&audio_monitor->new_data);
 	audio_resampler_destroy(audio_monitor->resampler);
 	audio_monitor->resampler = NULL;
 
@@ -550,7 +534,7 @@ void audio_monitor_start(struct audio_monitor *audio_monitor)
 
 	blog(LOG_INFO, "Started Monitoring in '%s'", audio_monitor->device_id);
 
-	circlebuf_init(&audio_monitor->new_data);
+	deque_init(&audio_monitor->new_data);
 
 	pthread_mutex_unlock(&audio_monitor->mutex);
 }
@@ -593,7 +577,7 @@ static void do_stream_write(void *param)
 			goto finish;
 		}
 
-		circlebuf_pop_front(&data->new_data, buffer, bytesToFill);
+		deque_pop_front(&data->new_data, buffer, bytesToFill);
 
 		pa_stream_write(data->stream, buffer, bytesToFill, NULL, 0LL, PA_SEEK_RELATIVE);
 	}
@@ -754,7 +738,7 @@ void audio_monitor_audio(void *data, struct obs_audio_data *audio)
 
 	size_t bytes = audio_monitor->bytes_per_frame * resample_frames;
 
-	circlebuf_push_back(&audio_monitor->new_data, resample_data[0], bytes);
+	deque_push_back(&audio_monitor->new_data, resample_data[0], bytes);
 	do_stream_write(data);
 	pthread_mutex_unlock(&audio_monitor->mutex);
 }
