@@ -815,7 +815,8 @@ QString AudioMonitorDock::GetTrackName(int i)
 		return QT_UTF8(obs_module_text("All"));
 
 	QString trackName = QT_UTF8("Track") + QString::number(i + 1) + QT_UTF8("Name");
-	trackName = QT_UTF8(config_get_string(obs_frontend_get_profile_config(), "AdvOut", QT_TO_UTF8(trackName)));
+	auto c = obs_frontend_get_profile_config();
+	trackName = QT_UTF8(c ? config_get_string(c, "AdvOut", QT_TO_UTF8(trackName)) : "");
 	if (trackName.isEmpty()) {
 		trackName = QT_UTF8(obs_module_text("Track"));
 		trackName += " ";
