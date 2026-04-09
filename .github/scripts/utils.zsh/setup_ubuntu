@@ -42,6 +42,7 @@ if (( ! (${skips[(Ie)all]} + ${skips[(Ie)deps]}) )) {
     build-essential \
     libgles2-mesa-dev \
     pulseaudio \
+    libsimde-dev \
     obs-studio
 
   local -a _qt_packages=()
