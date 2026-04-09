@@ -2,6 +2,7 @@
 
 #include <QCheckBox>
 #include <QVBoxLayout>
+#include <QPushButton>
 #include "utils.hpp"
 #include "obs-module.h"
 #include "media-io/audio-math.h"
@@ -289,7 +290,7 @@ void AudioOutputControl::OBSOutputAudio(void *param, size_t mix_idx, struct audi
 
 void AudioOutputControl::LockVolumeControl(bool lock)
 {
-	QCheckBox *checkbox = reinterpret_cast<QCheckBox *>(sender());
+	QAbstractButton *checkbox = reinterpret_cast<QAbstractButton *>(sender());
 	int columns = mainLayout->columnCount();
 	for (int column = 1; column < columns; column++) {
 		QLayoutItem *item = mainLayout->itemAtPosition(lockRow, column);
@@ -325,10 +326,10 @@ obs_data_t *AudioOutputControl::GetSettings()
 		obs_data_set_string(device, "id", QT_TO_UTF8(w->objectName()));
 		obs_data_set_bool(
 			device, "locked",
-			reinterpret_cast<QCheckBox *>(mainLayout->itemAtPosition(lockRow, column)->widget())->isChecked());
+			reinterpret_cast<QAbstractButton *>(mainLayout->itemAtPosition(lockRow, column)->widget())->isChecked());
 		obs_data_set_bool(
 			device, "muted",
-			reinterpret_cast<QCheckBox *>(mainLayout->itemAtPosition(muteRow, column)->widget())->isChecked());
+			reinterpret_cast<QAbstractButton *>(mainLayout->itemAtPosition(muteRow, column)->widget())->isChecked());
 		obs_data_set_double(device, "volume", (double)w->value() / 100.0);
 		obs_data_set_string(device, "name", QT_TO_UTF8(w->toolTip()));
 		obs_data_array_push_back(devices, device);
@@ -394,6 +395,7 @@ void AudioOutputControl::addDeviceColumn(int column, QString device_id, QString 
 #else
 	connect(locked, &QCheckBox::stateChanged, this, &AudioOutputControl::LockVolumeControl, Qt::DirectConnection);
 #endif
+	mainLayout->addWidget(locked, lockRow, column, Qt::AlignHCenter);
 
 	auto *slider = new SliderIgnoreScroll();
 	slider->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
@@ -405,14 +407,24 @@ void AudioOutputControl::addDeviceColumn(int column, QString device_id, QString 
 	slider->setEnabled(!lock);
 
 	connect(slider, SIGNAL(valueChanged(int)), this, SLOT(SliderChanged(int)));
-
-	auto *mute = new MuteCheckBox();
-	mute->setChecked(muted);
-	mute->setEnabled(!lock);
-
-	mainLayout->addWidget(locked, lockRow, column, Qt::AlignHCenter);
 	mainLayout->addWidget(slider, sliderRow, column, Qt::AlignHCenter);
-	mainLayout->addWidget(mute, muteRow, column, Qt::AlignHCenter);
+
+	if (obs_get_version() >= MAKE_SEMANTIC_VERSION(32, 1, 0)) {
+		auto mute = new QPushButton();
+		mute->setCheckable(true);
+		mute->setChecked(muted);
+		mute->setEnabled(!lock);
+		mute->setProperty("class", "btn-mute");
+
+		mainLayout->addWidget(mute, muteRow, column, Qt::AlignHCenter);
+	} else {
+
+		auto *mute = new MuteCheckBox();
+		mute->setChecked(muted);
+		mute->setEnabled(!lock);
+
+		mainLayout->addWidget(mute, muteRow, column, Qt::AlignHCenter);
+	}
 }
 
 void AudioOutputControl::RemoveDevice(QString device_id)

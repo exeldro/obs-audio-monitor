@@ -1,6 +1,8 @@
 #include "audio-control.hpp"
 
 #include <QCheckBox>
+#include <QPushButton>
+#include <QStyle>
 #include <QVBoxLayout>
 #include "utils.hpp"
 
@@ -77,7 +79,7 @@ void AudioControl::OBSVolumeLevel(void *data, const float magnitude[MAX_AUDIO_CH
 
 void AudioControl::LockVolumeControl(bool lock)
 {
-	QCheckBox *checkbox = reinterpret_cast<QCheckBox *>(sender());
+	QAbstractButton *checkbox = reinterpret_cast<QAbstractButton *>(sender());
 	int columns = mainLayout->columnCount();
 	for (int column = 1; column < columns; column++) {
 		QLayoutItem *item = mainLayout->itemAtPosition(0, column);
@@ -221,6 +223,7 @@ void AudioControl::ShowOutputSlider(bool output)
 #else
 		connect(locked, &QCheckBox::stateChanged, this, &AudioControl::LockVolumeControl, Qt::DirectConnection);
 #endif
+		mainLayout->addWidget(locked, 0, 1, Qt::AlignHCenter);
 
 		auto *slider = new SliderIgnoreScroll();
 		slider->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
@@ -241,23 +244,51 @@ void AudioControl::ShowOutputSlider(bool output)
 
 		connect(slider, SIGNAL(valueChanged(int)), this, SLOT(SliderChanged(int)));
 
-		auto *mute = new MuteCheckBox();
-		mute->setEnabled(!lock);
-		mute->setChecked(obs_source_muted(s));
+		mainLayout->addWidget(slider, 1, 1, Qt::AlignHCenter);
+
+		if (obs_get_version() >= MAKE_SEMANTIC_VERSION(32, 1, 0)) {
+			auto mute = new QPushButton();
+			mute->setCheckable(true);
+			mute->setEnabled(!lock);
+			mute->setChecked(obs_source_muted(s));
+			if (mute->isChecked()) {
+				mute->setProperty("class", "btn-mute checked");
+			} else {
+				mute->setProperty("class", "btn-mute");
+			}
+			connect(
+				mute, &QPushButton::toggled, this, [this, mute](bool checked) {
+					MuteVolumeControl(checked);
+					if (checked) {
+						mute->setProperty("class", "btn-mute checked");
+					} else {
+						mute->setProperty("class", "btn-mute");
+					}
+					mute->style()->unpolish(mute);
+					mute->style()->polish(mute);
+				},
+				Qt::DirectConnection);
+
+			mainLayout->addWidget(mute, 2, 1, Qt::AlignHCenter);
+		} else {
+			auto *mute = new MuteCheckBox();
+			mute->setEnabled(!lock);
+			mute->setChecked(obs_source_muted(s));
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
-		connect(mute, &QCheckBox::checkStateChanged, this, &AudioControl::MuteVolumeControl, Qt::DirectConnection);
+			connect(mute, &QCheckBox::checkStateChanged, this, &AudioControl::MuteVolumeControl, Qt::DirectConnection);
 #else
-		connect(mute, &QCheckBox::stateChanged, this, &AudioControl::MuteVolumeControl, Qt::DirectConnection);
+			connect(mute, &QCheckBox::stateChanged, this, &AudioControl::MuteVolumeControl, Qt::DirectConnection);
 #endif
+			mainLayout->addWidget(mute, 2, 1, Qt::AlignHCenter);
+		}
 
 		signal_handler_connect(obs_source_get_signal_handler(s), "mute", OBSMute, this);
 		signal_handler_connect(obs_source_get_signal_handler(s), "volume", OBSVolume, this);
 		obs_source_release(s);
 
-		mainLayout->addWidget(locked, 0, 1, Qt::AlignHCenter);
-		mainLayout->addWidget(slider, 1, 1, Qt::AlignHCenter);
-		mainLayout->addWidget(mute, 2, 1, Qt::AlignHCenter);
+		
+		
 		if (showSliderNames) {
 			auto *nameLabel = new QLabel();
 			QFont font = nameLabel->font();
@@ -370,7 +401,7 @@ void AudioControl::FilterEnable(QString name, bool enabled)
 		auto *l = static_cast<QLabel *>(item->widget());
 		if (l->objectName() == name) {
 			item = mainLayout->itemAtPosition(muteRow, column);
-			QCheckBox *checkbox = reinterpret_cast<QCheckBox *>(item->widget());
+			QAbstractButton *checkbox = reinterpret_cast<QAbstractButton *>(item->widget());
 			if (checkbox->isChecked() == enabled)
 				checkbox->setChecked(!enabled);
 		}
@@ -545,6 +576,7 @@ void AudioControl::addFilterColumn(int column, obs_source_t *filter)
 #else
 	connect(locked, &QCheckBox::stateChanged, this, &AudioControl::LockVolumeControl, Qt::DirectConnection);
 #endif
+	mainLayout->addWidget(locked, lockRow, column, Qt::AlignHCenter);
 
 	QString filterName = QT_UTF8(obs_source_get_name(filter));
 	auto *slider = new SliderIgnoreScroll();
@@ -566,21 +598,48 @@ void AudioControl::addFilterColumn(int column, obs_source_t *filter)
 	}
 	connect(slider, SIGNAL(valueChanged(int)), this, SLOT(SliderChanged(int)));
 
-	auto *mute = new MuteCheckBox();
-	mute->setEnabled(!lock);
-	mute->setChecked(!obs_source_enabled(filter));
+	mainLayout->addWidget(slider, sliderRow, column, Qt::AlignHCenter);
+
+	if (obs_get_version() >= MAKE_SEMANTIC_VERSION(32, 1, 0)) {
+		auto mute = new QPushButton();
+		mute->setCheckable(true);
+		mute->setEnabled(!lock);
+		mute->setChecked(!obs_source_enabled(filter));
+		if (mute->isChecked()) {
+			mute->setProperty("class", "btn-mute checked");
+		} else {
+			mute->setProperty("class", "btn-mute");
+		}
+		connect(
+			mute, &QPushButton::toggled, this,
+			[this, mute](bool checked) {
+				MuteVolumeControl(checked);
+				if (checked) {
+					mute->setProperty("class", "btn-mute checked");
+				} else {
+					mute->setProperty("class", "btn-mute");
+				}
+				mute->style()->unpolish(mute);
+				mute->style()->polish(mute);
+			},
+			Qt::DirectConnection);
+
+		mainLayout->addWidget(mute, muteRow, column, Qt::AlignHCenter);
+	} else {
+		auto *mute = new MuteCheckBox();
+		mute->setEnabled(!lock);
+		mute->setChecked(!obs_source_enabled(filter));
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
-	connect(mute, &QCheckBox::checkStateChanged, this, &AudioControl::MuteVolumeControl, Qt::DirectConnection);
+		connect(mute, &QCheckBox::checkStateChanged, this, &AudioControl::MuteVolumeControl, Qt::DirectConnection);
 #else
-	connect(mute, &QCheckBox::stateChanged, this, &AudioControl::MuteVolumeControl, Qt::DirectConnection);
+		connect(mute, &QCheckBox::stateChanged, this, &AudioControl::MuteVolumeControl, Qt::DirectConnection);
 #endif
+		mainLayout->addWidget(mute, muteRow, column, Qt::AlignHCenter);
+	}
 
 	obs_data_release(settings);
 
-	mainLayout->addWidget(locked, lockRow, column, Qt::AlignHCenter);
-	mainLayout->addWidget(slider, sliderRow, column, Qt::AlignHCenter);
-	mainLayout->addWidget(mute, muteRow, column, Qt::AlignHCenter);
 	if (showSliderNames) {
 		auto *nameLabel = new QLabel();
 		QFont font = nameLabel->font();
