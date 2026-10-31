@@ -3,6 +3,7 @@
 #include <QCheckBox>
 #include <QVBoxLayout>
 #include <QPushButton>
+#include <QStyle>
 #include "utils.hpp"
 #include "obs-module.h"
 #include "media-io/audio-math.h"
@@ -274,7 +275,7 @@ void AudioOutputControl::OBSOutputAudio(void *param, size_t mix_idx, struct audi
 				item = control->mainLayout->itemAtPosition(control->muteRow, column);
 				if (!item)
 					continue;
-				auto *mute = reinterpret_cast<QCheckBox *>(item->widget());
+				auto *mute = reinterpret_cast<QAbstractButton *>(item->widget());
 				if (mute->isChecked())
 					muted = true;
 				break;
@@ -408,16 +409,36 @@ void AudioOutputControl::addDeviceColumn(int column, QString device_id, QString 
 
 	connect(slider, SIGNAL(valueChanged(int)), this, SLOT(SliderChanged(int)));
 	mainLayout->addWidget(slider, sliderRow, column, Qt::AlignHCenter);
+  
+  if (obs_get_version() >= MAKE_SEMANTIC_VERSION(32, 1, 0)) {
+    auto mute = new QPushButton();
+    mute->setCheckable(true);
+    mute->setChecked(muted);
+    mute->setEnabled(!lock);
 
-	if (obs_get_version() >= MAKE_SEMANTIC_VERSION(32, 1, 0)) {
-		auto mute = new QPushButton();
-		mute->setCheckable(true);
-		mute->setChecked(muted);
-		mute->setEnabled(!lock);
-		mute->setProperty("class", "btn-mute");
+    /* Apply the icon when first created */
+    mute->setProperty(
+      "class",
+      muted ? "btn-mute checked" : "btn-mute"
+    );
 
-		mainLayout->addWidget(mute, muteRow, column, Qt::AlignHCenter);
-	} else {
+    /* Refresh the icon whenever mute state changes */
+    connect(mute, &QPushButton::toggled, this,
+      [mute](bool checked) {
+        mute->setProperty(
+          "class",
+          checked ? "btn-mute checked" : "btn-mute"
+        );
+
+        mute->style()->unpolish(mute);
+        mute->style()->polish(mute);
+      }
+    );
+
+    mainLayout->addWidget(
+      mute, muteRow, column, Qt::AlignHCenter
+    );
+  } else {
 
 		auto *mute = new MuteCheckBox();
 		mute->setChecked(muted);
