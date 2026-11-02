@@ -47,6 +47,7 @@ public:
 	void AddDevice(QString device_id, QString device_name);
 	void RemoveDevice(QString device_id);
 	void Reset();
+	void Clear();
 	//void AddDevice(QString deviceId, QString deviceName);
 	//void RemoveDevice(QString deviceId);
 	//bool HasSliders();

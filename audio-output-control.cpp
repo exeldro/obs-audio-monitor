@@ -495,3 +495,25 @@ void AudioOutputControl::Reset()
 		audio_monitor_start(d.value());
 	}
 }
+
+void AudioOutputControl::Clear()
+{
+	for (auto d = audioDevices.begin(); d != audioDevices.end(); d++) {
+		audio_monitor_destroy(d.value());
+	}
+	audioDevices.clear();
+	const auto columns = mainLayout->columnCount();
+	for (auto column = 1; column < columns; column++) {
+		const auto rows = mainLayout->rowCount();
+		for (auto row = 0; row < rows; row++) {
+			auto *item = mainLayout->itemAtPosition(row, column);
+			if (item) {
+				auto *w = item->widget();
+				mainLayout->removeItem(item);
+				delete w;
+				delete item;
+			}
+		}
+
+	}
+}

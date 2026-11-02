@@ -163,6 +163,7 @@ AudioMonitorDock::~AudioMonitorDock()
 	}
 	obs_data_release(data);
 	bfree(file);
+	RemoveAllSources();
 }
 
 void AudioMonitorDock::OBSSignal(void *data, const char *signal, calldata_t *call_data)
@@ -434,6 +435,14 @@ void AudioMonitorDock::RemoveAudioControl(const QString &sourceName)
 
 void AudioMonitorDock::RemoveAllSources()
 {
+	for (int i = 0; i < MAX_AUDIO_MIXES; i++) {
+		auto *item = mainLayout->itemAtPosition(1, i + 1);
+		if (item) {
+			AudioOutputControl *control = static_cast<AudioOutputControl *>(item->widget());
+			control->Clear();
+		}
+	}
+
 	const int columns = mainLayout->columnCount();
 	for (int i = MAX_AUDIO_MIXES + 1; i < columns; i++) {
 		QLayoutItem *item = mainLayout->itemAtPosition(0, i);
